@@ -1,0 +1,34 @@
+{
+  "name": "gravital",
+  "version": "1.0.0",
+  "description": "this is a social media project",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "author": "Shahid",
+  "license": "ISC",
+  "keywords": [],
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.699.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
+    "aws-sdk": "^2.1692.0",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.4",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.15",
+    "otp-generator": "^4.0.1",
+    "redis": "^4.7.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
