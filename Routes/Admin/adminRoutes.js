@@ -2,6 +2,7 @@ const express = require('express');
 const adminRoute = express.Router();
 const adminController = require('../../Controller/adminController');
 const authenticate = require('../../Middleware/adminAuth')
+const postController = require('../../Controller/postController');
 const moderationController = require('../../Controller/moderationController');
 
 adminRoute.post('/login', adminController.adminLogin);
@@ -15,5 +16,8 @@ adminRoute.get('/post-list',authenticate, adminController.postsList);
 adminRoute.post('/refresh-token',adminController.refreshAccessToken);
 adminRoute.post('/logout', adminController.adminLogout)
 adminRoute.get('/report-list', authenticate, moderationController.getAllReportDetials);
-
+adminRoute.get('/reports',authenticate, moderationController.getReportDetails);
+adminRoute.patch('/restrict-post' , authenticate, postController.restrictPost)
+adminRoute.patch('/unrestrict-post' , authenticate, postController.unRestrictPost)
+adminRoute.patch('/boost-post', authenticate, postController.boostPost)
 module.exports = adminRoute

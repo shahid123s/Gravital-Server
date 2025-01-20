@@ -68,11 +68,24 @@ const getCachedProfileImageUrl = async (userId, profileImageKey) => {
     return profileImageUrl;
 }
 
+const getCachedPostUrl = async (postId, fileName)=> {
+    console.log(fileName, 'redis')
+    const redisKey =  `post${postId}`;
+    let fileUrl = await client.get(redisKey);
+
+    if(!fileUrl){
+        fileUrl = await generatePreSignedUrlForProfileImageS3(fileName, true);
+        await client.setEx(redisKey, 3600, fileUrl)
+    }
+    return fileUrl;
+}
+
 module.exports = {
     client,
     storeData,
     storeOtp,
     getData,
     getOtp,
-    getCachedProfileImageUrl
+    getCachedProfileImageUrl,
+    getCachedPostUrl,
 }

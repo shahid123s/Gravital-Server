@@ -233,10 +233,40 @@ const getUsersPost = async (req, res) => {
     }
 }
 
+const restrictPost = async (req, res) => {
+    const {postId} = req.body;
+    const response = await Post.findByIdAndUpdate(postId, {$set: {isRestricted: true}})
+    console.log(response)
+    res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
+
+}
+const unRestrictPost = async (req, res) => {
+    const {postId} = req.body;
+    const response = await Post.findByIdAndUpdate(postId, {$set: {isRestricted: false}})
+    console.log(response)
+    res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
+}
+
+const boostPost = async (req, res) => {
+    const {postId} = req.body;
+    const response = await Post.findByIdAndUpdate(postId, {$set: {isPostBoost: true}});
+    res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
+
+}
+// const checkStatus = async (req, res) => {
+//     const {postId} = req.body;
+//     const response = await Post.findByIdAndUpdate(postId, {$set: {isPostBoost: true}});
+//     res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
+
+// }
+
 module.exports = {
     addPost,
     getPost,
     toggleLike,
     getUsersPost,
     toggleSave,
+    restrictPost,
+    unRestrictPost,
+    boostPost
 }

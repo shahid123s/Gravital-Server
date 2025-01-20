@@ -3,6 +3,8 @@ const { ResponseMessage } = require('../Constants/messageConstants');
 const Report = require('../Model/reportModal')
 const Restrict = require('../Model/restrictModal')
 const Block = require('../Model/blockModal');
+const { getCachedPostUrl, getCachedProfileImageUrl } = require('../Config/redis');
+const { reportActionButton } = require('../library/filteration');
 
 const userStatus = async (req, res) => {
     const { userId } = req.query;
@@ -109,10 +111,10 @@ const reportPost = async (req, res) => {
 
     const report = new Report({
         reporterId: currentUserId,
-        reportedId: userId,
+        reportedId: postId,
         reportMessage: message,
         reportType: 'post',
-        postId,
+
     })
 
 
@@ -131,27 +133,30 @@ const getAllReportDetials = async (req, res) => {
         : {};
 
 
-    const [reportDetails, totalCount] = await Promise.all([
+    const [response, totalCount] = await Promise.all([
         Report.aggregate([
-            { $match: matchStage }, // Match based on filters (e.g., date, status)
+            {
+                $match: matchStage // Filtering conditions, e.g., search, status
+            },
 
-            // Group by reportedId (user) or postId (post) and count reports
+            // Group by reportedId and aggregate reports
             {
                 $group: {
                     _id: {
                         reportedId: "$reportedId",
-                        postId: "$postId",
+                        type: "$reportType", // Group by report type as well
                     },
-                    reportCount: { $sum: 1 }, // Count how many times reported
-                    createdAt: { $first: "$createdAt" }, // Keep the creation date
+                    reportCount: { $sum: 1 }, // Count the number of reports
+                    createdAt: { $first: "$createdAt" }, // Use the first createdAt for reference
+                    status: { $first: '$status' },
                 },
             },
 
-            // Fetch details of the reported user
+            // Fetch user details if the report is about a user
             {
                 $lookup: {
                     from: "users",
-                    localField: "_id.reportedId",
+                    localField: "_id.reportedId", // The reported user ID
                     foreignField: "_id",
                     as: "reportedUserDetails",
                 },
@@ -159,15 +164,15 @@ const getAllReportDetials = async (req, res) => {
             {
                 $unwind: {
                     path: "$reportedUserDetails",
-                    preserveNullAndEmptyArrays: true,
+                    preserveNullAndEmptyArrays: true, // Allow null in case type is post
                 },
             },
 
-            // Fetch details of the reported post
+            // Fetch post details if the report is about a post
             {
                 $lookup: {
                     from: "posts",
-                    localField: "_id.postId",
+                    localField: "_id.reportedId", // The reported post ID
                     foreignField: "_id",
                     as: "reportedPostDetails",
                 },
@@ -175,44 +180,40 @@ const getAllReportDetials = async (req, res) => {
             {
                 $unwind: {
                     path: "$reportedPostDetails",
-                    preserveNullAndEmptyArrays: true,
+                    preserveNullAndEmptyArrays: true, // Allow null in case type is user
                 },
             },
 
-            // Determine the type (user or post) and project only relevant details
+            // Project the desired fields with conditional logic for type
             {
                 $project: {
-                    reportCount: 1, // Total reports
-                    type: {
-                        $cond: {
-                            if: { $ne: ["$_id.postId", null] },
-                            then: "Post",
-                            else: "User",
-                        },
-                    },
+                    _id : '$_id.reportedId',
+                    reportCount: 1, // Total number of reports
+                    type: "$_id.type", // Report type: User or Post
+                    status: 1,
                     details: {
                         $cond: {
-                            if: { $ne: ["$_id.postId", null] },
+                            if: { $eq: ["$_id.type", "post"] }, // Check if it's a post
                             then: {
                                 caption: "$reportedPostDetails.caption",
                                 fileName: "$reportedPostDetails.fileName",
                                 uploadDate: "$reportedPostDetails.uploadDate",
-                                status: "$reportedPostDetails.status", // Assuming posts have a status field
+                                status: "$reportedPostDetails.status",
                                 postId: "$reportedPostDetails._id",
                             },
                             else: {
                                 username: "$reportedUserDetails.username",
                                 email: "$reportedUserDetails.email",
                                 profileImage: "$reportedUserDetails.profileImage",
-                                status: "$reportedUserDetails.status", // Assuming users have a status field
+                                status: "$reportedUserDetails.status",
                             },
                         },
                     },
-                    createdAt: 1,
+                    createdAt: 1, // Include the createdAt field
                 },
             },
 
-            // Pagination
+            // Optionally, add pagination
             { $skip: skip },
             { $limit: Number(limit) },
         ]),
@@ -232,6 +233,26 @@ const getAllReportDetials = async (req, res) => {
         ]),
     ]);
 
+    console.log(response)
+
+
+    const reportDetails = await Promise.all(
+        response.map(async (report) => {
+            if (report?.details?.fileName) {
+                report.details.fileName = await getCachedPostUrl(report._id.reportedId, report.details.fileName)
+            } else {
+                report.details.profileImage = await getCachedProfileImageUrl(report._id.reportedId, report.details.profileImage)
+            }
+
+            report.actions = await reportActionButton(report.status)
+
+            return report
+        })
+    )
+
+
+    //    console.log(reportDetails)
+
     const totalPage = Math.ceil(totalCount[0].totalCount / limit);
     console.log(reportDetails, totalPage);
 
@@ -243,6 +264,17 @@ const getAllReportDetials = async (req, res) => {
     })
 }
 
+const getReportDetails = async (req, res) => {
+    const {reportId} = req.query;
+
+    const reports = await Report.find({
+        reportedId: reportId,
+    })
+
+    console.log(reports)
+
+}
+
 module.exports = {
     userStatus,
     toggleRestrict,
@@ -251,4 +283,6 @@ module.exports = {
     getProfileLink,
     reportPost,
     getAllReportDetials,
+    getReportDetails,
+
 }

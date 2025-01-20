@@ -6,7 +6,8 @@ const Post = require('../Model/postModal');
 const { STATUS_CODE } = require('../Config/enum');
 const { ResponseMessage } = require('../Constants/messageConstants');
 const { getCachedProfileImageUrl } = require('../Config/redis');
-const { postActionButton } = require('../library/filteration');
+const { postActionButton, userActionButton } = require('../library/filteration');
+const { convertDateToMonthAndYear } = require('../Config/dateConvertion');
 
 const adminLogin = async (req, res) => {
     const {email, password} = req.body;
@@ -93,9 +94,7 @@ const usersList = async(req, res) => {
      .status(STATUS_CODE.GATEWAY_TIMEOUT)
      .json({message : ResponseMessage.ERROR.INTERNET_SERVER_ERROR})
     }
- }
- 
-
+}
 
 const banUser = async (req, res) => {
     const {userId} = req.body;
@@ -106,13 +105,11 @@ const banUser = async (req, res) => {
     res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
 }
 
-
 const unBanUser = async (req, res) => {
     const { userId} = req.body;
     await User.findByIdAndUpdate( userId, {$set : {isBan: false}});
     res.status(STATUS_CODE.SUCCESS_OK).json({message: ResponseMessage.SUCCESS.UPDATED})
 }
-
 
 const userData = async(req, res) => { 
     const { userId } = req.query;
@@ -177,13 +174,10 @@ const refreshAccessToken = async (req, res) => {
 
 }
 
-
 const adminLogout = async (req, res) => {
     res.clearCookie('adminToken');
     res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGOUT })
 }
-
-
 
 const postsList = async (req, res) => {
     try {
@@ -193,7 +187,7 @@ const postsList = async (req, res) => {
         const searchData  = search.trim().replace(/[^a-zA-Z}\s]/g, "");
 
         const [postList, countList] = await Promise.all([
-            Post.find({}, 'caption fileName uploadDate like').populate({
+            Post.find({}, 'caption fileName uploadDate like isRestricted isPostBoost').populate({
                 path: 'userID',
                 select: 'username fullName profileImage'
             })
@@ -207,6 +201,7 @@ const postsList = async (req, res) => {
 
         if(postList.some(post => post.fileName)){
                 for(const post of postList){
+                    post.uploadDate = convertDateToMonthAndYear(post.uploadDate)
                     post.fileName  = await generatePreSignedUrlForProfileImageS3(post.fileName, true);
                     post.actions = postActionButton(post)
                 }
