@@ -16,7 +16,10 @@ adminRoute.get('/post-list',authenticate, adminController.postsList);
 adminRoute.post('/refresh-token',adminController.refreshAccessToken);
 adminRoute.post('/logout', adminController.adminLogout)
 adminRoute.get('/report-list', authenticate, moderationController.getAllReportDetials);
-adminRoute.get('/reports',authenticate, moderationController.getReportDetails);
+adminRoute.route('/report')
+.get(authenticate, moderationController.getReportDetails)
+.patch(authenticate, moderationController.updateReportStatus);
+
 adminRoute.patch('/restrict-post' , authenticate, postController.restrictPost)
 adminRoute.patch('/unrestrict-post' , authenticate, postController.unRestrictPost)
 adminRoute.patch('/boost-post', authenticate, postController.boostPost)

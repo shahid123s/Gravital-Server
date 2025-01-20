@@ -5,6 +5,8 @@ const Restrict = require('../Model/restrictModal')
 const Block = require('../Model/blockModal');
 const { getCachedPostUrl, getCachedProfileImageUrl } = require('../Config/redis');
 const { reportActionButton } = require('../library/filteration');
+const { convertStringToObjectID } = require('../services/MongoDb/mongooseAction');
+
 
 const userStatus = async (req, res) => {
     const { userId } = req.query;
@@ -266,12 +268,58 @@ const getAllReportDetials = async (req, res) => {
 
 const getReportDetails = async (req, res) => {
     const {reportId} = req.query;
+    
+    const id = await convertStringToObjectID(reportId)
+    const reports = await Report.aggregate([
+        {
+            $match: {
+                reportedId: id,
+            },
+        },
+        {
+            $lookup: {
+                from: 'users',
+                localField: 'reporterId',
+                foreignField: '_id',
+                as: 'reporterDetails'
+            },
+        },
+        {
+            $unwind: {
+                path: '$reporterDetails',
+                preserveNullAndEmptyArrays: true,
+            },
+        },
+        {
+            $project: {
+                _id: 1,
+                username: '$reporterDetails.username',
+                status: 1,
+                reportMessage: 1,
+            },
+        },
+    ]);
 
-    const reports = await Report.find({
-        reportedId: reportId,
+
+    res.status(STATUS_CODE.SUCCESS_OK).json({
+        message: ResponseMessage.SUCCESS.OK,
+        reports
     })
+    
 
-    console.log(reports)
+
+}
+
+const updateReportStatus = async (req, res) => {
+    const { reportId, action } = req.body;
+    console.log(reportId, action)
+
+    const response = await Report.findByIdAndUpdate(reportId, {
+        status: action.toLowerCase(),
+    }, {new: true});
+
+
+    res.status(STATUS_CODE.SUCCESS_OK).json({message: ResponseMessage.SUCCESS.OK})
 
 }
 
@@ -284,5 +332,5 @@ module.exports = {
     reportPost,
     getAllReportDetials,
     getReportDetails,
-
+    updateReportStatus,
 }
