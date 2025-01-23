@@ -66,36 +66,20 @@ const userSchema = new mongoose.Schema({
         type : Boolean,
         default :false
     },
-
-    post: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Post',
-    }],
-    likePost: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Post',
-    }],
-    savedPost: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Post',
-    }],
-
     isPrivate: {
         type: Boolean,
         default: false,
     },
-    blockedUsers: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    }],
 
     isVerified: {
         type: Boolean,
         default: false,
     },
+
     verficationToken: {
         type: String,
     },
+
     verficationTokenExpire: {
         type: Date,
     },
@@ -103,29 +87,14 @@ const userSchema = new mongoose.Schema({
     lastLogin: {
         type: Date,
     },
+
     resetPasswordToken: {
         type: String
     },
+
     resetPasswordExpires: {
         type: Date,
     },
-
-    notification: {
-        type : [{
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Notification'
-        }]
-    },
-    unreadedNotificationCount: {
-        type: Number,
-        default : 0
-    },
-
-    paymentHistory: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Payment'
-    }],
-
 }, {timestamps : true});
 
 

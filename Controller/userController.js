@@ -1,4 +1,5 @@
 const User = require('../Model/userModel');
+const Post = require('../Model/postModel')
 const { hashPassword, comparePassword } = require('../Config/bcrypt');
 const { getData, storeData, storeOtp, getOtp, getCachedProfileImageUrl } = require('../Config/redis')
 const genrateOtp = require('../Config/generateOtp')
@@ -307,14 +308,15 @@ const userDetails = async (req, res) => {
   let user;
   let followersCount = 0;
   let followingsCount = 0;
-  let isFollowed = false
+  let isFollowed = false;
+  let postCount = 0;
   try {
     if (!username) {
-      [user, followersCount, followingsCount] = await Promise.all([
+      [user, followersCount, followingsCount, postCount] = await Promise.all([
         User.findById(userId, 'username fullName profileImage bio gender post  '),
         Follow.countDocuments({ following: userId }),
         Follow.countDocuments({ follower: userId }),
-
+        Post.find({userID: userId}).countDocuments(),
       ])
     }
     else {
@@ -326,11 +328,11 @@ const userDetails = async (req, res) => {
 
       }
 
-      [followersCount, followingsCount, isFollowed] = await Promise.all([
+      [followersCount, followingsCount, isFollowed, postCount] = await Promise.all([
         Follow.countDocuments({ following: user._id }),
         Follow.countDocuments({ follower: user._id }),
-        Follow.exists({ follower: userId, following: user._id })
-
+        Follow.exists({ follower: userId, following: user._id }),
+        Post.find({userID: user._id}).countDocuments(),
       ])
 
     }
@@ -340,7 +342,7 @@ const userDetails = async (req, res) => {
       return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND })
     }
 
-    const postCount = user.post?.length;
+
 
 
     if (user && user.profileImage) {
@@ -441,22 +443,22 @@ const toggleFollow = async (req, res) => {
 
 }
 
-const aboutProfile = async(req, res) => {
-  const {username} =  req.query;
+const aboutProfile = async (req, res) => {
+  const { username } = req.query;
 
   try {
     const user = await User.findOne({
       username,
     }, 'username createdAt profileImage ').lean();
-    
+
     user.createdAt = convertDateToMonthAndYear(user.createdAt);
     console.log(user.createdAt)
-    user.profileImage  = await getCachedProfileImageUrl(user._id, user.profileImage);
+    user.profileImage = await getCachedProfileImageUrl(user._id, user.profileImage);
 
     console.log(user)
-    res.status(STATUS_CODE.SUCCESS_OK).json({user, message: ResponseMessage.SUCCESS.OK})
+    res.status(STATUS_CODE.SUCCESS_OK).json({ user, message: ResponseMessage.SUCCESS.OK })
   } catch (error) {
-    
+
   }
 }
 

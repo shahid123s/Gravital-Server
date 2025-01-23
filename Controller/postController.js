@@ -162,35 +162,32 @@ const toggleSave = async (req, res) => {
 const getUsersPost = async (req, res) => {
     const { userId } = req.user;
     const { username } = req.query;
-    console.log(req.query, 'pari')
-    console.log('vanna')
+    console.log(req.query,  userId, 'pari')
+
     try {
-        let usersPost
+        let posts;
         if (!username) {
-            usersPost = await User.findById(userId).
-                populate({
-                    path: 'post',
-                    options: { lean: true },
-                })
+            posts = await Post.find({ userID: userId }).lean();
+            for (const post of posts) {
+                post.postUrl = await getCachedPostUrl(post._id, post.fileName);
+            }
+            return res.status(STATUS_CODE.SUCCESS_OK).json({ posts, message: ResponseMessage.SUCCESS.OK })
+        }
+        const user = await User.findOne({ username });
 
+        if (!user) {
+            return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND });
         }
-        else {
-            usersPost = await User.findOne({ username }).
-                populate({
-                    path: 'post',
-                    options: { lean: true }
-                })
-        }
-        const posts = usersPost.post;
-        console.log(posts.length)
+        console.log(user._id)
+
+        posts = await Post.find({ userID: user._id }).lean();
+
         for (const post of posts) {
-            post.postUrl = await generatePreSignedUrlForProfileImageS3(post.fileName, true);
-            const likedCount = post.like.length;
-            post.likedCount = likedCount;
+            post.postUrl = await getCachedPostUrl(post._id, post.fileName);
         }
 
-        // console.log(usersPost, 'ith aaan')
         res.status(STATUS_CODE.SUCCESS_OK).json({ posts, message: ResponseMessage.SUCCESS.OK })
+
     } catch (error) {
         console.log(error)
         res.status(STATUS_CODE.SERVER_ERROR).json({
