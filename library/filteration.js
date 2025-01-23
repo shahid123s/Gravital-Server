@@ -18,8 +18,6 @@ const postActionButton = (post)=> {
 
 const reportActionButton = (report) => {
     const actions = [{title: 'View Details',  color: 'blue'}];
-
-
     return actions
     
 }

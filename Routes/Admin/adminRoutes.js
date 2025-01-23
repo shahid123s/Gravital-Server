@@ -20,6 +20,7 @@ adminRoute.route('/report')
 .get(authenticate, moderationController.getReportDetails)
 .patch(authenticate, moderationController.updateReportStatus);
 
+adminRoute.get('/post-details', authenticate, postController.getPostData)
 adminRoute.patch('/restrict-post' , authenticate, postController.restrictPost)
 adminRoute.patch('/unrestrict-post' , authenticate, postController.unRestrictPost)
 adminRoute.patch('/boost-post', authenticate, postController.boostPost)

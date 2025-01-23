@@ -1,10 +1,13 @@
-const Post = require('../Model/postModal')
-const User = require('../Model/userModel')
-const {STATUS_CODE} = require('../Config/enum');
+const Post = require('../Model/postModel');
+const User = require('../Model/userModel');
+const Like = require('../Model/postLikeModel');
+const SavedPost = require('../Model/savedPostModel')
+const { STATUS_CODE } = require('../Config/enum');
 const { POST_BUCKET_NAME, s3, PutObjectCommand } = require('../Config/s3');
 const { generatePreSignedUrlForProfileImageS3 } = require('../Config/getProfileImageUrl');
-const { getCachedProfileImageUrl } = require('../Config/redis');
+const { getCachedProfileImageUrl, getCachedPostUrl } = require('../Config/redis');
 const { ResponseMessage } = require('../Constants/messageConstants');
+const { postActionButton } = require('../library/filteration');
 
 
 
@@ -51,11 +54,10 @@ const addPost = async (req, res) => {
 
 }
 
-const getPost = async (req, res) => {
+const getAllPost = async (req, res) => {
     const limit = 3;
     const { userId } = req.user;
     const { page } = req.query;
-    console.log(page)
     try {
         const posts = await Post.find().
             populate({
@@ -65,17 +67,19 @@ const getPost = async (req, res) => {
             .skip((page - 1) * limit)
             .limit(limit)
             .lean();
-        // console.log(posts);
-        // console.log(posts)
+
+
         for (const post of posts) {
             post.postUrl = await generatePreSignedUrlForProfileImageS3(post.fileName, true);
-            post.likedByUser = post.like.some((id) => id.toString() ===  userId )
-            post.isSavedByUser = post.postSaved.some(id => id.toString() === userId);
-            const likedCount = post.like.length;
-            post.likedCount = likedCount;
+            [post.likedByUser, post.likedCount, post.isSavedByUser] = await Promise.all([
+                Like.exists({ postId: post._id, userId }),
+                Like.find({ postId: post._id }).countDocuments(),
+                SavedPost.exists({ postId: post._id, userId })
+            ])
 
 
-            if (post.userID?.profileImage) {
+
+            if (post.userID.profileImage) {
                 post.userID.profileImage = await getCachedProfileImageUrl(
                     post.userID._id,
                     post.userID.profileImage
@@ -85,7 +89,7 @@ const getPost = async (req, res) => {
 
         // console.log(posts)
 
-        res.status(STATUS_CODE.SUCCESS_OK).json({ posts, hasMore: posts.length === limit , message: ResponseMessage.SUCCESS.OK})
+        res.status(STATUS_CODE.SUCCESS_OK).json({ posts, hasMore: posts.length === limit, message: ResponseMessage.SUCCESS.OK })
 
 
     } catch (error) {
@@ -98,46 +102,25 @@ const getPost = async (req, res) => {
 const toggleLike = async (req, res) => {
     const { postId } = req.body;
     const { userId } = req.user;
-    
-    // console.log(postId, userId)
+
+    console.log(postId, userId)
 
     try {
         const [post, user] = await Promise.all([
             Post.findById(postId),
             User.findById(userId)
         ])
-        if (!post) {
+        if (!post || !user) {
             return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND });
         }
+        let like = await Like.exists({ userId, postId });
 
-        const likeIndex = post.like.findIndex(
-            (like) => like.toString() === userId
-        );
-
-        const postIndex = user.likePost.findIndex(
-            (id) => id.toString() === postId
-        )
-
-        if (likeIndex === -1  && postIndex === -1) {
-            post.like.push(userId);
-            user.likePost.push(userId)
-            await Promise.all([
-                post.save(),
-                user.save()
-               ])
+        if (like) {
+            await Like.deleteOne({ userId, postId });
+            return res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED });
         }
 
-        else {
-            post.like.splice(likeIndex, 1);
-            user.likePost.splice(postIndex, 1)
-            await Promise.all([
-            post.save(),
-            user.save()
-           ])
-        }
-
-        console.log(post, user)
-
+        await Like.create({ postId, userId });
         res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED });
 
     } catch (error) {
@@ -147,8 +130,8 @@ const toggleLike = async (req, res) => {
 }
 
 const toggleSave = async (req, res) => {
-    const {userId} = req.user;
-    const {postId} = req.body;
+    const { userId } = req.user;
+    const { postId } = req.body;
 
     try {
         const [post, user] = await Promise.all([
@@ -156,67 +139,50 @@ const toggleSave = async (req, res) => {
             User.findById(userId)
         ])
 
-        if(!post){
-            return res.status(STATUS_CODE.NOT_FOUND).json({message: ResponseMessage.ERROR.NOT_FOUND});
+        if (!post || !user) {
+            return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND });
         }
 
-        const savedIndex = post.postSaved.findIndex(
-            (save) => save.toString() === userId
-        );
+        const isExists = await SavedPost.exists({ postId, userId });
+        if (isExists) {
+            await SavedPost.deleteOne({ postId, userId });
+            return res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED });
 
-        const postIndex = user.savedPost.findIndex(
-            (Id) => Id.toString() === postId
-        )
-        
-        if(savedIndex === -1  && postIndex === -1 ){
-            post.postSaved.push(userId);
-            user.savedPost.push(postId);
-            await Promise.all([
-                post.save(),
-                user.save()
-               ])
-        }
-        else {
-            post.postSaved.splice(savedIndex, 1);
-            user.savedPost.splice(postIndex, 1)
-            await Promise.all([
-                post.save(),
-                user.save()
-               ])
         }
 
-        res.status(STATUS_CODE.SUCCESS_OK).json({message: ResponseMessage.SUCCESS.UPDATED}); 
+        await SavedPost.create({ postId, userId })
+        res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED });
 
     } catch (error) {
-        res.status(STATUS_CODE.SERVER_ERROR).json({message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR})
+        res.status(STATUS_CODE.SERVER_ERROR).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR })
     }
 
 }
 
 const getUsersPost = async (req, res) => {
     const { userId } = req.user;
-    const {username} = req.query;
+    const { username } = req.query;
     console.log(req.query, 'pari')
     console.log('vanna')
     try {
         let usersPost
-        if(!username){
-        usersPost = await User.findById(userId).
-        populate({
-            path: 'post',
-            options: { lean: true },
-        })
+        if (!username) {
+            usersPost = await User.findById(userId).
+                populate({
+                    path: 'post',
+                    options: { lean: true },
+                })
 
-       }
-       else {
-        usersPost = await User.findOne({username}).
-        populate({
-            path: 'post',
-            options: {lean: true}
-        })
-       }
+        }
+        else {
+            usersPost = await User.findOne({ username }).
+                populate({
+                    path: 'post',
+                    options: { lean: true }
+                })
+        }
         const posts = usersPost.post;
-            console.log(posts.length)
+        console.log(posts.length)
         for (const post of posts) {
             post.postUrl = await generatePreSignedUrlForProfileImageS3(post.fileName, true);
             const likedCount = post.like.length;
@@ -224,7 +190,7 @@ const getUsersPost = async (req, res) => {
         }
 
         // console.log(usersPost, 'ith aaan')
-        res.status(STATUS_CODE.SUCCESS_OK).json({posts, message: ResponseMessage.SUCCESS.OK})
+        res.status(STATUS_CODE.SUCCESS_OK).json({ posts, message: ResponseMessage.SUCCESS.OK })
     } catch (error) {
         console.log(error)
         res.status(STATUS_CODE.SERVER_ERROR).json({
@@ -234,23 +200,23 @@ const getUsersPost = async (req, res) => {
 }
 
 const restrictPost = async (req, res) => {
-    const {postId} = req.body;
-    const response = await Post.findByIdAndUpdate(postId, {$set: {isRestricted: true}})
+    const { postId } = req.body;
+    const response = await Post.findByIdAndUpdate(postId, { $set: { isRestricted: true } })
     console.log(response)
-    res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
+    res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED })
 
 }
 const unRestrictPost = async (req, res) => {
-    const {postId} = req.body;
-    const response = await Post.findByIdAndUpdate(postId, {$set: {isRestricted: false}})
+    const { postId } = req.body;
+    const response = await Post.findByIdAndUpdate(postId, { $set: { isRestricted: false } })
     console.log(response)
-    res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
+    res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED })
 }
 
 const boostPost = async (req, res) => {
-    const {postId} = req.body;
-    const response = await Post.findByIdAndUpdate(postId, {$set: {isPostBoost: true}});
-    res.status(STATUS_CODE.SUCCESS_OK).json({message  : ResponseMessage.SUCCESS.UPDATED})
+    const { postId } = req.body;
+    const response = await Post.findByIdAndUpdate(postId, { $set: { isPostBoost: true } });
+    res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED })
 
 }
 // const checkStatus = async (req, res) => {
@@ -260,13 +226,33 @@ const boostPost = async (req, res) => {
 
 // }
 
+const getPostData = async (req, res) => {
+    const { postId } = req.query;
+
+    const postData = await Post.findById(postId)
+        .populate({
+            path: 'userID',
+            select: 'username fullName'
+        })
+        .lean()
+
+    postData.fileName = await getCachedPostUrl(postData._id, postData.fileName)
+    postData.actions = await postActionButton(postData)
+
+
+    console.log(postData);
+
+    res.status(STATUS_CODE.SUCCESS_OK).json({ postData, message: ResponseMessage.SUCCESS.OK })
+}
+
 module.exports = {
     addPost,
-    getPost,
+    getAllPost,
     toggleLike,
     getUsersPost,
     toggleSave,
     restrictPost,
     unRestrictPost,
-    boostPost
+    boostPost,
+    getPostData,
 }

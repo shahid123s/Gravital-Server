@@ -1,8 +1,8 @@
 const { STATUS_CODE } = require('../Config/enum');
 const { ResponseMessage } = require('../Constants/messageConstants');
-const Report = require('../Model/reportModal')
-const Restrict = require('../Model/restrictModal')
-const Block = require('../Model/blockModal');
+const Report = require('../Model/reportModel')
+const Restrict = require('../Model/restrictModel')
+const Block = require('../Model/blockModel');
 const { getCachedPostUrl, getCachedProfileImageUrl } = require('../Config/redis');
 const { reportActionButton } = require('../library/filteration');
 const { convertStringToObjectID } = require('../services/MongoDb/mongooseAction');
@@ -125,7 +125,6 @@ const reportPost = async (req, res) => {
 }
 
 const getAllReportDetials = async (req, res) => {
-
     const { search, page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
     const searchData = search?.trim()?.replace(/[^a-zA-Z\s]/g, "");
@@ -134,137 +133,120 @@ const getAllReportDetials = async (req, res) => {
         ? { reportMessage: { $regex: searchData, $options: "i" } }
         : {};
 
-
-    const [response, totalCount] = await Promise.all([
-        Report.aggregate([
-            {
-                $match: matchStage // Filtering conditions, e.g., search, status
-            },
-
-            // Group by reportedId and aggregate reports
-            {
-                $group: {
-                    _id: {
-                        reportedId: "$reportedId",
-                        type: "$reportType", // Group by report type as well
+    try {
+        const [response, totalCount] = await Promise.all([
+            Report.aggregate([
+                { $match: matchStage },
+                {
+                    $group: {
+                        _id: {
+                            reportedId: "$reportedId",
+                            type: "$reportType",
+                        },
+                        reportCount: { $sum: 1 },
+                        createdAt: { $first: "$createdAt" },
+                        status: { $first: "$status" },
                     },
-                    reportCount: { $sum: 1 }, // Count the number of reports
-                    createdAt: { $first: "$createdAt" }, // Use the first createdAt for reference
-                    status: { $first: '$status' },
                 },
-            },
-
-            // Fetch user details if the report is about a user
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "_id.reportedId", // The reported user ID
-                    foreignField: "_id",
-                    as: "reportedUserDetails",
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "_id.reportedId",
+                        foreignField: "_id",
+                        as: "reportedUserDetails",
+                    },
                 },
-            },
-            {
-                $unwind: {
-                    path: "$reportedUserDetails",
-                    preserveNullAndEmptyArrays: true, // Allow null in case type is post
+                { $unwind: { path: "$reportedUserDetails", preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: "posts",
+                        localField: "_id.reportedId",
+                        foreignField: "_id",
+                        as: "reportedPostDetails",
+                    },
                 },
-            },
-
-            // Fetch post details if the report is about a post
-            {
-                $lookup: {
-                    from: "posts",
-                    localField: "_id.reportedId", // The reported post ID
-                    foreignField: "_id",
-                    as: "reportedPostDetails",
-                },
-            },
-            {
-                $unwind: {
-                    path: "$reportedPostDetails",
-                    preserveNullAndEmptyArrays: true, // Allow null in case type is user
-                },
-            },
-
-            // Project the desired fields with conditional logic for type
-            {
-                $project: {
-                    _id : '$_id.reportedId',
-                    reportCount: 1, // Total number of reports
-                    type: "$_id.type", // Report type: User or Post
-                    status: 1,
-                    details: {
-                        $cond: {
-                            if: { $eq: ["$_id.type", "post"] }, // Check if it's a post
-                            then: {
-                                caption: "$reportedPostDetails.caption",
-                                fileName: "$reportedPostDetails.fileName",
-                                uploadDate: "$reportedPostDetails.uploadDate",
-                                status: "$reportedPostDetails.status",
-                                postId: "$reportedPostDetails._id",
-                            },
-                            else: {
-                                username: "$reportedUserDetails.username",
-                                email: "$reportedUserDetails.email",
-                                profileImage: "$reportedUserDetails.profileImage",
-                                status: "$reportedUserDetails.status",
+                { $unwind: { path: "$reportedPostDetails", preserveNullAndEmptyArrays: true } },
+                {
+                    $project: {
+                        _id: "$_id.reportedId",
+                        reportCount: 1,
+                        type: "$_id.type",
+                        status: 1,
+                        details: {
+                            $cond: {
+                                if: { $eq: ["$_id.type", "post"] },
+                                then: {
+                                    caption: "$reportedPostDetails.caption",
+                                    fileName: { $ifNull: ["$reportedPostDetails.fileName", null] },
+                                    uploadDate: "$reportedPostDetails.uploadDate",
+                                    status: { $ifNull: ["$reportedPostDetails.status", "unknown"] },
+                                    postId: "$reportedPostDetails._id",
+                                },
+                                else: {
+                                    username: "$reportedUserDetails.username",
+                                    email: "$reportedUserDetails.email",
+                                    profileImage: { $ifNull: ["$reportedUserDetails.profileImage", null] },
+                                    status: { $ifNull: ["$reportedUserDetails.status", "unknown"] },
+                                },
                             },
                         },
-                    },
-                    createdAt: 1, // Include the createdAt field
-                },
-            },
-
-            // Optionally, add pagination
-            { $skip: skip },
-            { $limit: Number(limit) },
-        ]),
-
-        // Total count of unique reported users/posts
-        Report.aggregate([
-            { $match: matchStage },
-            {
-                $group: {
-                    _id: {
-                        reportedId: "$reportedId",
-                        postId: "$postId",
+                        createdAt: 1,
                     },
                 },
-            },
-            { $count: "totalCount" },
-        ]),
-    ]);
+                { $skip: skip },
+                { $limit: Number(limit) },
+            ]),
+            Report.aggregate([
+                { $match: matchStage },
+                {
+                    $group: {
+                        _id: { reportedId: "$reportedId", postId: "$postId" },
+                    },
+                },
+                { $count: "totalCount" },
+            ]),
+        ]);
 
-    console.log(response)
+        const reportDetails = await Promise.all(
+            response.map(async (report) => {
+                try {
+                    if (report.details.fileName) {
+                        report.details.fileName = await getCachedPostUrl(
+                            report._id,
+                            report.details.fileName
+                        );
+                    } else {
+                        report.details.profileImage = await getCachedProfileImageUrl(
+                            report._id,
+                            report.details.profileImage
+                        );
+                    }
+                    report.actions = await reportActionButton(report.status);
+                    return report;
+                } catch (error) {
+                    console.error(`Error processing report ID ${report._id}:`, error);
+                    return null; // Skip this report
+                }
+            })
+        );
 
+        const filteredReports = reportDetails.filter((report) => report !== null);
 
-    const reportDetails = await Promise.all(
-        response.map(async (report) => {
-            if (report?.details?.fileName) {
-                report.details.fileName = await getCachedPostUrl(report._id.reportedId, report.details.fileName)
-            } else {
-                report.details.profileImage = await getCachedProfileImageUrl(report._id.reportedId, report.details.profileImage)
-            }
+        const totalPage = totalCount.length > 0 ? Math.ceil(totalCount[0].totalCount / limit) : 1;
 
-            report.actions = await reportActionButton(report.status)
-
-            return report
-        })
-    )
-
-
-    //    console.log(reportDetails)
-
-    const totalPage = Math.ceil(totalCount[0].totalCount / limit);
-    console.log(reportDetails, totalPage);
-
-    res.status(STATUS_CODE.SUCCESS_OK).json({
-        reportDetails,
-        totalPage,
-        currentPage: page,
-        message: ResponseMessage.SUCCESS.OK,
-    })
-}
+        res.status(STATUS_CODE.SUCCESS_OK).json({
+            reportDetails: filteredReports,
+            totalPage,
+            currentPage: page,
+            message: ResponseMessage.SUCCESS.OK,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(STATUS_CODE.SERVER_ERROR).json({
+            message: ResponseMessage.ERROR.INTERNAL_SERVER_ERROR,
+        });
+    }
+};
 
 const getReportDetails = async (req, res) => {
     const {reportId} = req.query;
