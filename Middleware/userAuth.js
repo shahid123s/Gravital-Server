@@ -1,4 +1,6 @@
+const { STATUS_CODE } = require('../Config/enum');
 const {decodeAccessToken} = require('../Config/jwt');
+const { ResponseMessage } = require('../Constants/messageConstants');
 const User = require('../Model/userModel')
 
 const authenticateUser = async (req, res, next) => {
@@ -15,6 +17,11 @@ const authenticateUser = async (req, res, next) => {
     }
     try {
         const decode = await decodeAccessToken(token);
+        if(decode.role != 'user') {
+            return res
+            .status(STATUS_CODE.UNAUTHORIZED)
+            .json({message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN})
+        }
         req.user = decode;
         next();
     } catch (error) {

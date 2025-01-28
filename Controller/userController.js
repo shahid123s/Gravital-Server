@@ -14,6 +14,8 @@ const Follow = require('../Model/followModel');
 const { STATUS_CODE } = require('../Config/enum');
 const { ResponseMessage } = require('../Constants/messageConstants');
 const { convertDateToMonthAndYear } = require('../Config/dateConvertion');
+const Block = require('../Model/blockModel');
+const PreDefinedUserDetails = require('../Constants/predefinedUserDetails');
 
 const sendotp = async (req, res) => {
   const { username, email, password, } = req.body;
@@ -143,6 +145,13 @@ const login = async (req, res) => {
         .status(STATUS_CODE.NOT_FOUND)
         .json({ message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS })
     }
+
+    if(user.role == 'admin'){
+      return res
+      .status(404)
+      .json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS});
+    }
+
     if (user.isBlock) {
       return res.status(STATUS_CODE.UNAUTHORIZED).json({ message: ResponseMessage.ERROR.AUTHORIZATION.USER_BAN })
     }
@@ -161,7 +170,7 @@ const login = async (req, res) => {
 
     res
       .status(STATUS_CODE.SUCCESS_OK)
-      .json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGIN, accessToken });
+      .json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGIN, accessToken, username: user.username });
 
   } catch (error) {
     console.log(error)
@@ -237,68 +246,123 @@ const logout = async (req, res) => {
 }
 
 const suggesstingUser = async (req, res) => {
-  const { userId } = req.user;
-  const userIDObject = new mongoose.Types.ObjectId(userId)
-  const response = await User.aggregate([
-    {
-      $lookup: {
-        from: "follows",
-        localField: "_id",
-        foreignField: "following",
-        as: "isFollowed",
-      },
-    },
-    {
-      $addFields: {
-        isFollowedByUser: {
-          $in: [userIDObject, "$isFollowed.follower"],
+  try {
+    const { userId } = req.user; // Get current user ID from req.user
+    const userIDObject = new mongoose.Types.ObjectId(userId);
+
+    const response = await User.aggregate([
+      // Lookup to check if the user is followed by the current user
+      {
+        $lookup: {
+          from: "follows", // Name of your 'follows' collection
+          localField: "_id",
+          foreignField: "following",
+          as: "isFollowed",
         },
       },
-    },
-    {
-      $match: {
-        isFollowedByUser: false, // Exclude already-followed users
-        role: { $ne: "admin" },
+      {
+        $addFields: {
+          isFollowedByUser: {
+            $in: [userIDObject, "$isFollowed.follower"], // Check if current user follows
+          },
+        },
       },
-    },
-    {
-      $match: {
-        _id: { $ne: userIDObject }, // Exclude the current user
-      },
-    },
-    {
-      $project: {
-        _id: 1,
-        username: 1,
-        fullName: 1,
-        profileImage: 1,
-        postCount: { $size: '$post' }
-      },
-    },
-    {
-      $sort: {
-        postCount: -1,
-        followersCount: -1,
-      },
-    },
-    {
-      $limit: 4
-    },
-  ]);
 
-  let usersList = await Promise.all(
-    response.map(async (user) => {
-      user.profileImage = await getCachedProfileImageUrl(
-        user._id,
-        user.profileImage
-      );
-      return user;
-    })
-  );
+      // Lookup to check if the user is blocked
+      {
+        $lookup: {
+          from: "blocks", // Name of your 'blocks' collection
+          let: { userId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$blockerId", "$$userId"] }, // Blocker is the current user
+                    { $eq: ["$blockedId", userIDObject] }, // Current user is blocked
+                  ],
+                },
+              },
+            },
+          ],
+          as: "blockedByUser",
+        },
+      },
+      {
+        $addFields: {
+          isBlockedByUser: { $gt: [{ $size: "$blockedByUser" }, 0] }, // If entries exist, user is blocked
+        },
+      },
 
-  console.log(usersList)
-  res.status(STATUS_CODE.SUCCESS_OK).json({ usersList, message: ResponseMessage.SUCCESS.OK })
-}
+      // Lookup to get the count of posts for the user
+      {
+        $lookup: {
+          from: "posts", // Name of your 'posts' collection
+          localField: "_id",
+          foreignField: "userID",
+          as: "userPosts",
+        },
+      },
+      {
+        $addFields: {
+          postCount: { $size: "$userPosts" }, // Count the user's posts
+        },
+      },
+
+      // Filter out users who are already followed, blocked, or the current user
+      {
+        $match: {
+          isFollowedByUser: false, // Exclude already-followed users
+          isBlockedByUser: false, // Exclude blocked users
+          role: { $ne: "admin" }, // Exclude admins
+          _id: { $ne: userIDObject }, // Exclude the current user
+        },
+      },
+
+      // Project required fields
+      {
+        $project: {
+          _id: 1,
+          username: 1,
+          fullName: 1,
+          profileImage: 1,
+          postCount: 1,
+        },
+      },
+
+      // Sort by post count and followers count (optional if 'followersCount' exists)
+      {
+        $sort: {
+          postCount: -1,
+        },
+      },
+
+      // Limit to 4 suggestions
+      {
+        $limit: 4,
+      },
+    ]);
+
+    // Handle profile image transformation (e.g., caching)
+    let usersList = await Promise.all(
+      response.map(async (user) => {
+        user.profileImage = await getCachedProfileImageUrl(
+          user._id,
+          user.profileImage
+        );
+        return user;
+      })
+    );
+
+    // Send the response
+    res
+      .status(200)
+      .json({ usersList, message: "Suggested users fetched successfully." });
+  } catch (error) {
+    console.error("Error suggesting users:", error);
+    res.status(500).json({ message: "Failed to fetch suggested users." });
+  }
+};
 
 const userDetails = async (req, res) => {
   const { userId } = req.user;
@@ -321,11 +385,22 @@ const userDetails = async (req, res) => {
     }
     else {
 
-      user = await User.findOne({ username }, 'username fullName profileImage bio gender post  ');
+      user = await User.findOne({ username }, 'username fullName profileImage bio gender  ');
 
+      
       if (!user) {
         return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND })
 
+      };
+
+      const isBlocked = await Block.exists({
+        blockerId: user._id,
+        blockedId : userId,
+      })
+      
+      if(isBlocked){
+         return res.status(STATUS_CODE.SUCCESS_OK)
+        .json({message: ResponseMessage.SUCCESS.OK,  user: PreDefinedUserDetails })
       }
 
       [followersCount, followingsCount, isFollowed, postCount] = await Promise.all([
@@ -339,7 +414,7 @@ const userDetails = async (req, res) => {
 
 
     if (!user) {
-      return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND })
+      return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND})
     }
 
 
@@ -422,6 +497,11 @@ const toggleFollow = async (req, res) => {
   const targetUserId = req.body.userId;
   console.log(userId, targetUserId)
   try {
+    if(!targetUserId) {
+      return res
+      .status(STATUS_CODE.BAD_REQUEST)
+      .json({message: ResponseMessage.ERROR.BAD_REQUEST});
+    }
     const existingFollow = await Follow.findOne({ follower: userId, following: targetUserId });
     console.log(existingFollow)
     if (existingFollow) {

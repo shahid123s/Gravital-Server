@@ -58,7 +58,7 @@ const getOtp = async (email) => {
 }
 
 const getCachedProfileImageUrl = async (userId, profileImageKey) => {
-    const redisKey = `profileImage${profileImageKey}`;
+    const redisKey = `profileImage${userId}`;
     let profileImageUrl = await client.get(redisKey);
 
     if(!profileImageUrl){
@@ -69,8 +69,7 @@ const getCachedProfileImageUrl = async (userId, profileImageKey) => {
 }
 
 const getCachedPostUrl = async (postId, fileName)=> {
-    console.log(fileName, 'redis')
-    const redisKey =  `post${fileName}`;
+    const redisKey =  `post${postId}`;
     let fileUrl = await client.get(redisKey);
 
     if(!fileUrl){

@@ -18,23 +18,6 @@ const postSchema =  new mongoose.Schema({
         type: Date,
         default: Date.now(),
     },
-    like : [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Like'
-    }],
-    comment : [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Comment',
-    }],
-    postSaved: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    }],
-    views: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-    }],
-
     isRestricted: {
         type: Boolean,
         default: false,

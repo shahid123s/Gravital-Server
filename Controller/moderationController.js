@@ -125,9 +125,13 @@ const reportPost = async (req, res) => {
 }
 
 const getAllReportDetials = async (req, res) => {
-    const { search, page = 1, limit = 10 } = req.query;
+    const { search, page = 1, limit = 10, filter } = req.query;
     const skip = (page - 1) * limit;
     const searchData = search?.trim()?.replace(/[^a-zA-Z\s]/g, "");
+    const filterData = filter !== 'All'?  filter.toLowerCase(): null
+    const filterStage = filterData ? {reportType: filterData}: {};
+
+    console.log(filterStage)
 
     const matchStage = searchData
         ? { reportMessage: { $regex: searchData, $options: "i" } }
@@ -136,7 +140,7 @@ const getAllReportDetials = async (req, res) => {
     try {
         const [response, totalCount] = await Promise.all([
             Report.aggregate([
-                { $match: matchStage },
+                { $match: {...filterStage, ...matchStage} },
                 {
                     $group: {
                         _id: {
