@@ -15,6 +15,7 @@ const { STATUS_CODE } = require('../Config/enum');
 const { ResponseMessage } = require('../Constants/messageConstants');
 const { convertDateToMonthAndYear } = require('../Config/dateConvertion');
 const Block = require('../Model/blockModel');
+const Archive = require('../Model/archveModel');
 const PreDefinedUserDetails = require('../Constants/predefinedUserDetails');
 
 const sendotp = async (req, res) => {
@@ -254,7 +255,7 @@ const suggesstingUser = async (req, res) => {
       // Lookup to check if the user is followed by the current user
       {
         $lookup: {
-          from: "follows", // Name of your 'follows' collection
+          from: "follows",
           localField: "_id",
           foreignField: "following",
           as: "isFollowed",
@@ -263,41 +264,41 @@ const suggesstingUser = async (req, res) => {
       {
         $addFields: {
           isFollowedByUser: {
-            $in: [userIDObject, "$isFollowed.follower"], // Check if current user follows
+            $in: [userIDObject, "$isFollowed.follower"],
           },
         },
       },
 
-      // Lookup to check if the user is blocked
+      // Lookup to check if the user is blocked (both ways)
       {
         $lookup: {
-          from: "blocks", // Name of your 'blocks' collection
-          let: { userId: "$_id" },
+          from: "blocks",
+          let: { suggestedUserId: "$_id" },
           pipeline: [
             {
               $match: {
                 $expr: {
-                  $and: [
-                    { $eq: ["$blockerId", "$$userId"] }, // Blocker is the current user
-                    { $eq: ["$blockedId", userIDObject] }, // Current user is blocked
+                  $or: [
+                    { $and: [{ $eq: ["$blockerId", userIDObject] }, { $eq: ["$blockedId", "$$suggestedUserId"] }] }, // Current user blocked the suggested user
+                    { $and: [{ $eq: ["$blockerId", "$$suggestedUserId"] }, { $eq: ["$blockedId", userIDObject] }] } // Suggested user blocked current user
                   ],
                 },
               },
             },
           ],
-          as: "blockedByUser",
+          as: "blockStatus",
         },
       },
       {
         $addFields: {
-          isBlockedByUser: { $gt: [{ $size: "$blockedByUser" }, 0] }, // If entries exist, user is blocked
+          isBlocked: { $gt: [{ $size: "$blockStatus" }, 0] }, // If entries exist, user is blocked
         },
       },
 
       // Lookup to get the count of posts for the user
       {
         $lookup: {
-          from: "posts", // Name of your 'posts' collection
+          from: "posts",
           localField: "_id",
           foreignField: "userID",
           as: "userPosts",
@@ -305,17 +306,17 @@ const suggesstingUser = async (req, res) => {
       },
       {
         $addFields: {
-          postCount: { $size: "$userPosts" }, // Count the user's posts
+          postCount: { $size: "$userPosts" },
         },
       },
 
       // Filter out users who are already followed, blocked, or the current user
       {
         $match: {
-          isFollowedByUser: false, // Exclude already-followed users
-          isBlockedByUser: false, // Exclude blocked users
-          role: { $ne: "admin" }, // Exclude admins
-          _id: { $ne: userIDObject }, // Exclude the current user
+          isFollowedByUser: false,
+          isBlocked: false, // Exclude blocked users
+          role: { $ne: "admin" },
+          _id: { $ne: userIDObject },
         },
       },
 
@@ -330,7 +331,7 @@ const suggesstingUser = async (req, res) => {
         },
       },
 
-      // Sort by post count and followers count (optional if 'followersCount' exists)
+      // Sort by post count
       {
         $sort: {
           postCount: -1,
@@ -342,6 +343,7 @@ const suggesstingUser = async (req, res) => {
         $limit: 4,
       },
     ]);
+
 
     // Handle profile image transformation (e.g., caching)
     let usersList = await Promise.all(
@@ -374,13 +376,15 @@ const userDetails = async (req, res) => {
   let followingsCount = 0;
   let isFollowed = false;
   let postCount = 0;
+  let archivePostCount = 0;
   try {
     if (!username) {
-      [user, followersCount, followingsCount, postCount] = await Promise.all([
+      [user, followersCount, followingsCount, postCount, archivePostCount] = await Promise.all([
         User.findById(userId, 'username fullName profileImage bio gender post  '),
         Follow.countDocuments({ following: userId }),
         Follow.countDocuments({ follower: userId }),
         Post.find({userID: userId}).countDocuments(),
+        Archive.find({userId}).countDocuments(),
       ])
     }
     else {
@@ -403,11 +407,12 @@ const userDetails = async (req, res) => {
         .json({message: ResponseMessage.SUCCESS.OK,  user: PreDefinedUserDetails })
       }
 
-      [followersCount, followingsCount, isFollowed, postCount] = await Promise.all([
+      [followersCount, followingsCount, isFollowed, postCount, archivePostCount] = await Promise.all([
         Follow.countDocuments({ following: user._id }),
         Follow.countDocuments({ follower: user._id }),
         Follow.exists({ follower: userId, following: user._id }),
         Post.find({userID: user._id}).countDocuments(),
+        Archive.find({userId: user._id}).countDocuments(),
       ])
 
     }
@@ -417,8 +422,8 @@ const userDetails = async (req, res) => {
       return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.NOT_FOUND})
     }
 
-
-
+    
+    console.log(archivePostCount, 'nokk')
 
     if (user && user.profileImage) {
       const profileImage = await generatePreSignedUrlForProfileImageS3(user.profileImage);
@@ -426,7 +431,7 @@ const userDetails = async (req, res) => {
         user: {
           ...user.toObject(),
           profileImage,
-          postCount,
+          postCount: postCount - archivePostCount,
           followersCount,
           followingsCount,
           isFollowed: isFollowed ? true : false

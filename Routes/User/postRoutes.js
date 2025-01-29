@@ -10,9 +10,12 @@ postRoute.get('/get-post', authenticate, verifyUserStatus, postController.getAll
 postRoute.post('/toggle-like', authenticate, verifyUserStatus, postController.toggleLike);
 postRoute.get('/get-users-post',authenticate, postController.getUsersPost);
 postRoute.post('/toggle-save', authenticate, postController.toggleSave);
+
 postRoute.route('/archive')
 .get( authenticate, postController.getArchivePost)
 .post(authenticate, postController.archivePost);
 
+postRoute.post('/publish', authenticate, postController.publishPost);
+postRoute.post('/delete', authenticate, postController.deletPost);
 
 module.exports = postRoute;

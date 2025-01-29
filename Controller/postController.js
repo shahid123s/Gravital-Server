@@ -1,7 +1,8 @@
 const Post = require('../Model/postModel');
 const User = require('../Model/userModel');
 const Like = require('../Model/postLikeModel');
-const SavedPost = require('../Model/savedPostModel')
+const SavedPost = require('../Model/savedPostModel');
+const Comment = require('../Model/commentModel')
 const { STATUS_CODE } = require('../Config/enum');
 const { POST_BUCKET_NAME, s3, PutObjectCommand } = require('../Config/s3');
 const { generatePreSignedUrlForProfileImageS3 } = require('../Config/getProfileImageUrl');
@@ -9,6 +10,7 @@ const { getCachedProfileImageUrl, getCachedPostUrl } = require('../Config/redis'
 const { ResponseMessage } = require('../Constants/messageConstants');
 const { postActionButton } = require('../library/filteration');
 const Block = require('../Model/blockModel');
+const Report = require('../Model/reportModel');
 const Archive = require('../Model/archveModel');
 
 
@@ -60,40 +62,46 @@ const getAllPost = async (req, res) => {
     const { userId } = req.user;
     const { page } = req.query;
 
-    console.log((page - 1) * limit, 'checking')
-
     try {
-
-        const [archivedPost, blockerId ] = await Promise.all([
+        // Fetch archived posts, users who blocked the current user, and users the current user blocked
+        const [archivedPost, blockedByUsers, blockedUsers] = await Promise.all([
             Archive.find().select('postId').lean(),
-            Block.find({blockedId: userId}).select('blockerId')
-        ])
+            Block.find({ blockedId: userId }).select('blockerId').lean(),
+            Block.find({ blockerId: userId }).select('blockedId').lean()
+        ]);
 
-        const archivedPostIds = archivedPost.map((post) => post.postId);
+        // Extract IDs from objects
+        const archivedPostIds = archivedPost.map(post => post.postId);
+        const blockedByUserIds = blockedByUsers.map(block => block.blockerId);
+        const blockedUserIds = blockedUsers.map(block => block.blockedId);
 
-        console.log(archivedPostIds, blockerId, 'ith ivda vannaaa');
+        // Merge both blocking arrays to exclude them from posts
+        const blockedIds = [...blockedByUserIds, ...blockedUserIds];
 
+        console.log(archivedPostIds, blockedIds, 'Filtered post IDs');
 
+        // Fetch posts with proper filtering
+        const posts = await Post.find({
+            isRestricted: false,
+            _id: { $nin: archivedPostIds }, // Exclude archived posts
+            userID: { $nin: blockedIds } // Exclude posts from blocked users
+        })
+        .populate({
+            path: 'userID',
+            select: 'username fullName profileImage'
+        })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean();
 
-        const posts = await Post.find({ isRestricted: false,  _id: { $nin: archivedPostIds} }).
-            populate({
-                path: 'userID',
-                select: 'username fullName profileImage'
-            })
-            .skip((page - 1) * limit)
-            .limit(limit)
-            .lean();
-
-            
+        // Process each post
         for (const post of posts) {
             post.postUrl = await generatePreSignedUrlForProfileImageS3(post.fileName, true);
             [post.likedByUser, post.likedCount, post.isSavedByUser] = await Promise.all([
                 Like.exists({ postId: post._id, userId }),
-                Like.find({ postId: post._id }).countDocuments(),
+                Like.countDocuments({ postId: post._id }),
                 SavedPost.exists({ postId: post._id, userId })
-            ])
-
-
+            ]);
 
             if (post.userID.profileImage) {
                 post.userID.profileImage = await getCachedProfileImageUrl(
@@ -103,16 +111,17 @@ const getAllPost = async (req, res) => {
             }
         }
 
-        // console.log(posts)
-
-        res.status(STATUS_CODE.SUCCESS_OK).json({ posts, hasMore: posts.length === limit, message: ResponseMessage.SUCCESS.OK })
-
+        res.status(STATUS_CODE.SUCCESS_OK).json({
+            posts,
+            hasMore: posts.length === limit,
+            message: ResponseMessage.SUCCESS.OK
+        });
 
     } catch (error) {
-        console.log(error)
-        res.status(STATUS_CODE.SERVER_ERROR).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR })
+        console.log(error);
+        res.status(STATUS_CODE.SERVER_ERROR).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR });
     }
-}
+};
 
 
 const toggleLike = async (req, res) => {
@@ -189,10 +198,33 @@ const getUsersPost = async (req, res) => {
             const archivedPost  = await Archive.find({userId}).select('postId').lean();
             const archivedPostIds = archivedPost.map(post => post.postId);
             
-            posts = await Post.find({ userID: userId , _id: {$nin: archivedPostIds}}).lean();
-            for (const post of posts) {
-                post.postUrl = await getCachedPostUrl(post._id, post.fileName);
-            }
+            posts = await Post.find({ userID: userId , _id: {$nin: archivedPostIds}})
+            .populate({
+                path: 'userID',
+                select: 'username fullName profileImage'
+            })
+            .lean();
+
+            posts = await Promise.all(
+                posts.map(async (post) => {
+                    const postUrl = await getCachedPostUrl(post._id, post.fileName);
+                    post.userID.profileImage = await getCachedProfileImageUrl(post.userID._id , post.userID.profileImage)
+                    const [likedByUser, likedCount, isSavedByUser] = await Promise.all([
+                        Like.exists({ postId: post._id, userId }) || false,
+                        Like.countDocuments({ postId: post._id }) || 0,
+                        SavedPost.exists({ postId: post._id, userId }) || false,
+                    ]);
+                    return {
+                        ...post,
+                        postUrl,
+                        likedByUser,
+                        likedCount,
+                        isSavedByUser,
+                    };
+                })
+            );
+
+            console.log(posts, 'profile le post')
             // posts = posts.filter((post) => post._id != )
             return res.status(STATUS_CODE.SUCCESS_OK).json({ posts, message: ResponseMessage.SUCCESS.OK })
         }
@@ -220,12 +252,34 @@ const getUsersPost = async (req, res) => {
         }
 
 
-        posts = await Post.find({ userID: user._id , _id: {$nin: archivedPostIds}}).lean();
+        posts = await Post.find({ userID: user._id , _id: {$nin: archivedPostIds}})
+        .populate({
+            path: 'userID',
+            select: 'username fullName profileImage'
+        })
+        .lean();
 
-        for (const post of posts) {
-            post.postUrl = await getCachedPostUrl(post._id, post.fileName);
-            
-        }
+        posts = await Promise.all(
+            posts.map(async (post) => {
+                const postUrl = await getCachedPostUrl(post._id, post.fileName);
+                post.userID.profileImage = await getCachedProfileImageUrl(post.userID._id , post.userID.profileImage)
+                
+                const [likedByUser, likedCount, isSavedByUser] = await Promise.all([
+                    Like.exists({ postId: post._id, userId }) || false,
+                    Like.countDocuments({ postId: post._id }) || 0,
+                    SavedPost.exists({ postId: post._id, userId }) || false,
+                ]);
+                return {
+                    ...post,
+                    postUrl,
+                    likedByUser,
+                    likedCount,
+                    isSavedByUser,
+                };
+            })
+        );
+        
+        
 
         res.status(STATUS_CODE.SUCCESS_OK).json({ posts, message: ResponseMessage.SUCCESS.OK })
 
@@ -310,16 +364,21 @@ const archivePost = async (req, res) => {
     const {userId} = req.user; 
     // console.log(userId)
     try {
-        console.log('vanna')
+
             const response = await Archive.find({userId}).populate({
                 path: 'postId',
+                populate: {
+                    path: 'userID',
+                    select: 'username fullName profileImage'
+                }
             })
+        
 
 
             const postDetials = await Promise.all(
                 response.map(async (post) => {
                     post.postId.fileName = await getCachedPostUrl(post.postId._id, post.postId.fileName);
-    
+                    post.postId.userID.profileImage = await getCachedProfileImageUrl(post.postId.userID._id, post.postId.userID.profileImage)
                     return post;
                 })
             )
@@ -333,6 +392,38 @@ const archivePost = async (req, res) => {
     }
  }
 
+ const publishPost = async (req, res) => {
+    const {postId} = req.body;
+
+    try {
+        
+        const response  = await Archive.findOneAndDelete({postId});
+        res.status(STATUS_CODE.SUCCESS_OK).json({message: ResponseMessage.SUCCESS.UPDATED})
+    } catch (error) {
+        console.log(error)
+        res.status(STATUS_CODE.SUCCESS_OK).json({message: ResponseMessage.SUCCESS.OK, posts: postDetials})
+    }
+ }
+
+ const deletPost = async (req, res) => {
+    const {postId} = req.body;
+
+    try {
+    const response = await Promise.all([
+        Post.findByIdAndDelete(postId) ,
+        Archive.findOneAndDelete({postId}),
+        SavedPost.deleteMany({postId}),
+        Like.deleteMany({postId}),
+        Report.deleteMany({postId})
+
+    ])
+
+    res.status(STATUS_CODE.SUCCESS_OK).json({message: ResponseMessage.SUCCESS.UPDATED})
+    } catch (error) {
+        res.status(STATUS_CODE.SUCCESS_OK).json({message: ResponseMessage.SUCCESS.OK, posts: postDetials})
+
+    }
+ }
 
 module.exports = {
     addPost,
@@ -345,6 +436,8 @@ module.exports = {
     boostPost,
     getPostData,
     getArchivePost,
-    archivePost
+    archivePost,
+    publishPost,
+    deletPost,
 }
 
