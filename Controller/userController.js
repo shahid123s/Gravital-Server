@@ -18,63 +18,6 @@ const Block = require('../Model/blockModel');
 const Archive = require('../Model/archveModel');
 const PreDefinedUserDetails = require('../Constants/predefinedUserDetails');
 
-const sendotp = async (req, res) => {
-  const { username, email, password, } = req.body;
-
-  const validationErrors = validateInput({ username, email, password });
-  if (Object.keys(validationErrors).length) {
-    return res.status(400).json({ errors: validationErrors, message: ResponseMessage.ERROR.BAD_REQUEST });
-  }
-  try {
-
-    if (username && email && password) {
-      let user = await User.findOne({ email });
-
-      if (user) {
-        return res
-          .status(STATUS_CODE.CONFLICT)
-          .json({ message: ResponseMessage.ERROR.AUTHENTICATION.EXISTS_EMAIL });
-      };
-
-      user = await User.findOne({ username });
-
-      if (user) {
-        return res
-          .status(STATUS_CODE.CONFLICT)
-          .json({ message: ResponseMessage.ERROR.AUTHENTICATION.EXISTS_USERNAME })
-      }
-
-      const hasedPassword = await hashPassword(password);
-
-      user = {
-        userID: uuidv4(),
-        username,
-        email,
-        password: hasedPassword,
-      }
-      storeData(email, user, 1000);
-    }
-    const otp = genrateOtp(7);
-    storeOtp(email, JSON.stringify(otp));
-    sendOtpToEmail(email, otp);
-
-    res
-      .status(STATUS_CODE.SUCCESS_OK)
-      .json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.OTP_SEND });
-
-
-
-  } catch (error) {
-    if (error.code === 11000) {
-      console.error(error.message);
-      return res.status(STATUS_CODE.CONFLICT).json({ message: ResponseMessage.ERROR.AUTHENTICATION.EXISTS_USERNAME })
-    }
-    console.error(`${error.message} happens in register the user`);
-    res
-      .status(STATUS_CODE.SERVER_ERROR)
-      .json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR });
-  }
-}
 
 
 const otpVerification = async (req, res) => {

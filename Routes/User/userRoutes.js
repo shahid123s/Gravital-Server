@@ -2,7 +2,7 @@ const express = require('express');
 const userRoute = express.Router();
 const userController = require('../../Controller/userController');
 const moderationController = require('../../Controller/moderationController');
-const {authenticateUser: authenticate}  = require ('../../Middleware/userAuth');
+const {authenticateUser: authenticate}  = require ('../../DeletingFolder/Middleware/userAuth');
 const upload = require('../../Config/multer');
 
 

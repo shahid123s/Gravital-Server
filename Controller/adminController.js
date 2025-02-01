@@ -6,7 +6,7 @@ const Post = require('../Model/postModel');
 const { STATUS_CODE } = require('../Config/enum');
 const { ResponseMessage } = require('../Constants/messageConstants');
 const { getCachedProfileImageUrl } = require('../Config/redis');
-const { postActionButton, userActionButton } = require('../library/filteration');
+const { postActionButton, userActionButton } = require('../DeletingFolder/library/filteration');
 const { convertDateToMonthAndYear } = require('../Config/dateConvertion');
 
 const adminLogin = async (req, res) => {

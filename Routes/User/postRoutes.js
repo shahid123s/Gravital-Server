@@ -1,7 +1,7 @@
 const express = require('express');
 const postRoute = express.Router();
 const postController  = require('../../Controller/postController');
-const {authenticateUser: authenticate, verifyUserStatus}  = require('../../Middleware/userAuth');
+const {authenticateUser: authenticate, verifyUserStatus}  = require('../../DeletingFolder/Middleware/userAuth');
 const upload = require('../../Config/multer');
 
 

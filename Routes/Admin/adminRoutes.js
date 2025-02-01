@@ -1,7 +1,7 @@
 const express = require('express');
 const adminRoute = express.Router();
 const adminController = require('../../Controller/adminController');
-const authenticate = require('../../Middleware/adminAuth')
+const authenticate = require('../../DeletingFolder/Middleware/adminAuth')
 const postController = require('../../Controller/postController');
 const moderationController = require('../../Controller/moderationController');
 

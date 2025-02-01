@@ -1,7 +1,7 @@
 const { STATUS_CODE } = require('../Config/enum');
 const {decodeAccessToken} = require('../Config/jwt');
-const { ResponseMessage } = require('../Constants/messageConstants');
-const User = require('../Model/userModel')
+const { ResponseMessage } = require('../constants/messageConstants');
+const User = require('../../Model/userModel')
 
 const authenticateUser = async (req, res, next) => {
     const authHead = req.headers['authorization'];
