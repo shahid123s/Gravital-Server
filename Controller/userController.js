@@ -19,110 +19,6 @@ const Archive = require('../Model/archveModel');
 const PreDefinedUserDetails = require('../Constants/predefinedUserDetails');
 
 
-
-const otpVerification = async (req, res) => {
-  const { otp, email } = req.body;
-  if (!otp || !email) {
-    return res.status(400).json({ message: ResponseMessage.ERROR.AUTHENTICATION.INSUFFICENT_CREDENTIALS });
-  }
-  try {
-
-    const currentOtp = await getOtp(email)
-    if (!currentOtp) {
-      return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.AUTHENTICATION.OTP_EXPIRED })
-    }
-    if (+otp === Number(currentOtp)) {
-      return res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.OTP_VERIFIED })
-    }
-    else {
-      return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.AUTHENTICATION.OTP_MISMATCH })
-    }
-
-
-  } catch (error) {
-    console.log(error)
-    res.status(STATUS_CODE.GATEWAY_TIMEOUT).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR });
-  }
-}
-
-
-const register = async (req, res) => {
-  const { fullName, phoneNumber, email, dob } = req.body
-  // Validate input
-  const validationErrors = validateInput({ fullName, phoneNumber, email });
-  if (Object.keys(validationErrors).length) {
-    return res.status(STATUS_CODE.BAD_REQUEST).json({ errors: validationErrors, message: ResponseMessage.ERROR.AUTHENTICATION.INSUFFICENT_CREDENTIALS });
-  }
-  try {
-    console.log()
-    const userData = await getData(email);
-    console.log(userData)
-    const userDetails = { ...userData, fullName, phoneNumber, dob };
-
-    const user = new User({ ...userDetails });
-    await user.save();
-
-    res
-      .status(STATUS_CODE.SUCCESS_OK)
-      .json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.REGISTRATION });
-
-
-  } catch (error) {
-    console.log(error.message);
-    res.status(STATUS_CODE.GATEWAY_TIMEOUT).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR });
-  }
-}
-
-const login = async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res
-        .status(STATUS_CODE.NOT_FOUND)
-        .json({ message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS });
-    }
-    const isMatchPassword = await comparePassword(password, user.password);
-
-    if (!isMatchPassword) {
-      return res
-        .status(STATUS_CODE.NOT_FOUND)
-        .json({ message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS })
-    }
-
-    if(user.role == 'admin'){
-      return res
-      .status(404)
-      .json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS});
-    }
-
-    if (user.isBlock) {
-      return res.status(STATUS_CODE.UNAUTHORIZED).json({ message: ResponseMessage.ERROR.AUTHORIZATION.USER_BAN })
-    }
-    const accessToken = await generateAccessToken(user._id, user.role);
-    const refreshToken = await generateRefreshToken(user._id, user.role);
-
-    user.refreshToken = refreshToken;
-    await user.save();
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    })
-
-
-    res
-      .status(STATUS_CODE.SUCCESS_OK)
-      .json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGIN, accessToken, username: user.username });
-
-  } catch (error) {
-    console.log(error)
-    res.status(STATUS_CODE.GATEWAY_TIMEOUT).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR });
-  }
-}
-
-
 const refreshAccessToken = async (req, res) => {
   const { refreshToken } = req.cookies;
   if (!refreshToken) {
@@ -146,47 +42,6 @@ const refreshAccessToken = async (req, res) => {
   } catch (error) {
     res.status(STATUS_CODE.FORBIDDEN).json({ message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN });
   }
-}
-
-const resetPasswordEmail = async (req, res) => {
-  const { email } = req.body;
-  console.log(email, req.body)
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(STATUS_CODE.NOT_FOUND).json({ message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS });
-    }
-    const otp = genrateOtp(7);
-    storeOtp(email, JSON.stringify(otp));
-    sendOtpToEmail(email, otp);
-    res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.OTP_SEND });
-  } catch (error) {
-    return res.status(STATUS_CODE.GATEWAY_TIMEOUT).json({ message: error.message });
-  }
-}
-
-const resetPassword = async (req, res) => {
-  const { password, email } = req.body;
-  try {
-    const user = await User.findOne({ email })
-    const securedPassword = await hashPassword(password);
-    user.password = securedPassword;
-    await user.save();
-
-    res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.UPDATED })
-
-  } catch (error) {
-    return res.status(STATUS_CODE.GATEWAY_TIMEOUT).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR });
-  }
-
-
-}
-
-const logout = async (req, res) => {
-  res.clearCookie('refreshToken');
-  console.log(req.cookies, res.cookies)
-  res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGOUT })
-
 }
 
 const suggesstingUser = async (req, res) => {
@@ -491,14 +346,7 @@ const aboutProfile = async (req, res) => {
 }
 
 module.exports = {
-  sendotp,
-  otpVerification,
-  register,
-  login,
   refreshAccessToken,
-  logout,
-  resetPassword,
-  resetPasswordEmail,
   suggesstingUser,
   userDetails,
   updateProfile,

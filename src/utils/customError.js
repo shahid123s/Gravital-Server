@@ -4,7 +4,6 @@
  * @param {number}statusCode - HTTP status code
  * @param {string}errorCode - Error code
  */
-
 class CustomError extends Error {
     constructor(message, statusCode, errorCode) {
         super(message);

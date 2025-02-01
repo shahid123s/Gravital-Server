@@ -10,6 +10,7 @@ const ResponseMessage = {
             REGISTRATION: 'User Registred Successfully',
             LOGIN: 'Login Successfully',
             CHANGE_PASSWORD: 'Password Changed Successfully',
+            EMAIL_SEND_FAILED: 'Sending OTP Failed due to Sever Error',
             LOGOUT: 'User Logout Successfully',
         },
 

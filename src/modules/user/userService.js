@@ -76,12 +76,39 @@ const getUserDetailsByEmailWithPassword = async (email) => {
     }
 }
 
+/**
+ * Updates the user's password in the database.
+ * 
+ * @async
+ * @function updateUserPassword
+ * @param {string} email - The email of the user whose password needs to be updated.
+ * @param {string} newPassword - The new password to set for the user.
+ * 
+ * @returns {Object|null} The updated user object if the password is successfully updated, null if no user is found.
+ * 
+ * @throws {CustomError} If there's an issue during the database operation.
+ */
+const updateUserPassword = async (email, newPassword) => {
+    try {
+        return await User.findOneAndUpdate(
+            { email },
+            { password: newPassword, },
+            { new: true }
+        );
 
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            HTTP_STATUS_CODE.SERVER_ERROR,
+            ERROR_CODE.DATABASE_ERROR,
+        )
+    }
+}
 
 module.exports = {
     existsUserByUsername,
     existsUserByEmail,
     createUser,
     getUserDetailsByEmailWithPassword,
-
+    updateUserPassword,
 }

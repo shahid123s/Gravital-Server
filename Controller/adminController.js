@@ -9,45 +9,45 @@ const { getCachedProfileImageUrl } = require('../Config/redis');
 const { postActionButton, userActionButton } = require('../DeletingFolder/library/filteration');
 const { convertDateToMonthAndYear } = require('../Config/dateConvertion');
 
-const adminLogin = async (req, res) => {
-    const {email, password} = req.body;
+// const adminLogin = async (req, res) => {
+//     const {email, password} = req.body;
 
-    try {
-        const user = await User.findOne({email});
-    if(!user){
-        return res.status(STATUS_CODE.UNAUTHORIZED).json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS});
-    }
-    if(user.role !== 'admin'){
-        return res.status(STATUS_CODE.NOT_ACCEPTED).json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS});
-    }
-    const isMatch = await comparePassword(password, user.password);
+//     try {
+//         const user = await User.findOne({email});
+//     if(!user){
+//         return res.status(STATUS_CODE.UNAUTHORIZED).json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS});
+//     }
+//     if(user.role !== 'admin'){
+//         return res.status(STATUS_CODE.NOT_ACCEPTED).json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS});
+//     }
+//     const isMatch = await comparePassword(password, user.password);
     
-    if(!isMatch){
-        return res.status(STATUS_CODE.NOT_FOUND).json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS})
-    };
+//     if(!isMatch){
+//         return res.status(STATUS_CODE.NOT_FOUND).json({message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS})
+//     };
 
-    const accessToken = await generateAccessToken(user._id, user.role);
-    const refreshToken = await generateRefreshToken(user._id, user.role);
+//     const accessToken = await generateAccessToken(user._id, user.role);
+//     const refreshToken = await generateRefreshToken(user._id, user.role);
 
-    user.refreshToken = refreshToken;
-    await user.save();
+//     user.refreshToken = refreshToken;
+//     await user.save();
 
-    res.cookie('adminToken', refreshToken, {
-        httpOnly: true,
-        secure: false,  
-        sameSite: 'Lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+//     res.cookie('adminToken', refreshToken, {
+//         httpOnly: true,
+//         secure: false,  
+//         sameSite: 'Lax',
+//         maxAge: 7 * 24 * 60 * 60 * 1000,
+//     });
 
-    res.status(STATUS_CODE.SUCCESS_OK)
-    .json({message : ResponseMessage.SUCCESS.AUTHENTICATION.LOGIN, accessToken});
-    } catch (error) {
-        console.log(error);
-        res.status(STATUS_CODE.SERVER_ERROR).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR })
-    }
+//     res.status(STATUS_CODE.SUCCESS_OK)
+//     .json({message : ResponseMessage.SUCCESS.AUTHENTICATION.LOGIN, accessToken});
+//     } catch (error) {
+//         console.log(error);
+//         res.status(STATUS_CODE.SERVER_ERROR).json({ message: ResponseMessage.ERROR.INTERNET_SERVER_ERROR })
+//     }
 
 
-}
+// }
 
 const usersList = async(req, res) => {
     try {

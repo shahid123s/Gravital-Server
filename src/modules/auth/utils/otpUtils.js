@@ -1,10 +1,8 @@
 const crypto = require('crypto');
-
 /**
  * Generate a OTP using crypto
  * @returns {string} - The generated OTP
  */
-
 const generateOTP = () => {
     return crypto.randomInt(100000, 999999)
 }

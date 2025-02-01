@@ -1,3 +1,4 @@
+const { email } = require('../config/appConfig');
 const { client } = require('../config/redisConfig');
 const { generatePreSignedUrl } = require('./aswS3Utils');
 
@@ -50,6 +51,16 @@ const getRefreshToken = async (email) => {
         return await client.get(`token${email}`);
     } catch (error) {
         console.log(error);
+        return error;
+    }
+}
+// Remove token from Redis
+const deleteToken = async (email) => {
+    try {
+        await client.del(email);
+        return 'Deleted Successfully'
+    } catch (error) {
+        console.log(error)
         return error;
     }
 }
@@ -116,5 +127,6 @@ module.exports = {
     getRefreshToken,
     getCachedProfileImageUrl,
     getCachedPostUrl,
+    deleteToken,
     
 }

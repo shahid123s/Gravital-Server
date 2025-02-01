@@ -47,4 +47,4 @@ const sendEmailVerification = async (email, otp) => {
     }
 };
 
-module.exports = sendEmailVerification;
+module.exports = sendEmailVerification
