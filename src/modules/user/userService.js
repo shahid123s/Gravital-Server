@@ -1,8 +1,10 @@
 const User = require('../user/userModel')
+const { DATABASE_ERROR } = require('../../../constants/errorCodes');
+const { SERVER_ERROR } = require('../../../constants/httpStatus').HTTP_STATUS_CODE;
 const CustomError = require('../../utils/customError');
-const { HTTP_STATUS_CODE } = require('../../../constants/httpStatus');
-const ERROR_CODE = require('../../../constants/errorCodes');
 const { email } = require('../../config/appConfig');
+const { toObjectId } = require('../../utils/dbUtils');
+const { username } = require('../../../Constants/predefinedUserDetails');
 
 /**
  * Checks the user is exists with username in mongoDB
@@ -15,8 +17,8 @@ const existsUserByUsername = async (username) => {
     } catch (error) {
         throw new CustomError(
             error.message,
-            HTTP_STATUS_CODE.SERVER_ERROR,
-            ERROR_CODE.DATABASE_ERROR,
+            SERVER_ERROR,
+            DATABASE_ERROR,
         )
     }
 }
@@ -32,8 +34,8 @@ const existsUserByEmail = async (email) => {
     } catch (error) {
         throw new CustomError(
             error.message,
-            HTTP_STATUS_CODE.SERVER_ERROR,
-            ERROR_CODE.DATABASE_ERROR,
+            SERVER_ERROR,
+            DATABASE_ERROR,
         )
     }
 }
@@ -51,8 +53,8 @@ const createUser = async (userData) => {
     } catch (error) {
         throw new CustomError(
             error.message,
-            HTTP_STATUS_CODE.SERVER_ERROR,
-            ERROR_CODE.DATABASE_ERROR,
+            SERVER_ERROR,
+            DATABASE_ERROR,
         )
     }
 }
@@ -70,8 +72,8 @@ const getUserDetailsByEmailWithPassword = async (email) => {
     } catch (error) {
         throw new CustomError(
             error.message,
-            HTTP_STATUS_CODE.SERVER_ERROR,
-            ERROR_CODE.DATABASE_ERROR,
+            SERVER_ERROR,
+            DATABASE_ERROR,
         );
     }
 }
@@ -99,8 +101,213 @@ const updateUserPassword = async (email, newPassword) => {
     } catch (error) {
         throw new CustomError(
             error.message,
-            HTTP_STATUS_CODE.SERVER_ERROR,
-            ERROR_CODE.DATABASE_ERROR,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        )
+    }
+}
+
+/**
+ * Fetches suggested users for a given user ID.
+ * Excludes already followed and blocked users, sorts by post count.
+ *
+ * @param {string} userId - The ID of the current user.
+ * @returns {Promise<Array>} - List of suggested users.
+ */
+const getSuggestedUsers = async (userId) => {
+    try {
+        const userIDObject = toObjectId(userId); // Convert string to ObjectId (use your utility function)
+        if (!userIDObject) {
+            throw new Error("Invalid User ID");
+        }
+
+        const response = await User.aggregate([
+            // Lookup if the user is followed
+            {
+                $lookup: {
+                    from: "follows",
+                    localField: "_id",
+                    foreignField: "following",
+                    as: "isFollowed",
+                },
+            },
+            {
+                $addFields: {
+                    isFollowedByUser: {
+                        $in: [userIDObject, "$isFollowed.follower"],
+                    },
+                },
+            },
+
+            // Lookup if the user is blocked (both ways)
+            {
+                $lookup: {
+                    from: "blocks",
+                    let: { suggestedUserId: "$_id" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        { $and: [{ $eq: ["$blockerId", userIDObject] }, { $eq: ["$blockedId", "$$suggestedUserId"] }] },
+                                        { $and: [{ $eq: ["$blockerId", "$$suggestedUserId"] }, { $eq: ["$blockedId", userIDObject] }] }
+                                    ],
+                                },
+                            },
+                        },
+                    ],
+                    as: "blockStatus",
+                },
+            },
+            {
+                $addFields: {
+                    isBlocked: { $gt: [{ $size: "$blockStatus" }, 0] },
+                },
+            },
+
+            // Lookup post count
+            {
+                $lookup: {
+                    from: "posts",
+                    localField: "_id",
+                    foreignField: "userID",
+                    as: "userPosts",
+                },
+            },
+            {
+                $addFields: {
+                    postCount: { $size: "$userPosts" },
+                },
+            },
+
+            // Filtering conditions
+            {
+                $match: {
+                    isFollowedByUser: false,
+                    isBlocked: false,
+                    role: { $ne: "admin" },
+                    _id: { $ne: userIDObject },
+                },
+            },
+
+            // Project required fields
+            {
+                $project: {
+                    _id: 1,
+                    username: 1,
+                    fullName: 1,
+                    profileImage: 1,
+                    postCount: 1,
+                },
+            },
+
+            // Sort and limit
+            { $sort: { postCount: -1 } },
+            { $limit: 4 },
+        ]);
+
+        return response; // Return the aggregated response
+
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        );
+    }
+};
+
+/**
+ * Retrieves a user by their ID from the database.
+ * Excludes sensitive fields like password, refreshToken, and role.
+ *
+ * @param {string} userId - The ID of the user to retrieve.
+ * @returns {Promise<Object|null>} - Returns the user object if found, otherwise null.
+ * @throws {CustomError} - Throws an error if the userId is invalid or a database error occurs.
+ */
+const getUserById = async (userId) => {
+    try {
+        // Validate userId format
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            throw new CustomError("Invalid user ID", HTTP_STATUS_CODE.BAD_REQUEST, ERROR_CODE.INVALID_INPUT);
+        }
+
+        // Query user without sensitive fields & use .lean() for performance
+        const user = await User.findById(userId)
+            .select('-password -refreshToken -role')
+            .lean();
+
+        return user || null; // Return null if user not found
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        );
+    }
+};
+
+/**
+ * Retrieves a user by their username from the database.
+ * Excludes sensitive fields like password, refreshToken, and role.
+ *
+ * @param {string} username - The username of the user to retrieve.
+ * @returns {Promise<Object|null>} - Returns the user object if found, otherwise null.
+ * @throws {CustomError} - Throws an error if a database error occurs.
+ */
+const getUserByUsername = async (username) => {
+    try {
+        return await User.findOne({ username })
+            .select('-password -refreshToken -role')
+            .lean();
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        );
+    }
+}
+
+/**
+ * Updates user details by user ID.
+ * @param {string} userId - The ID of the user to update.
+ * @param {object} updateFields - An object containing the fields to update.
+ * @returns {Promise<Object>} - The updated user object.
+ * @throws {CustomError} - Throws an error if the update fails.
+ */
+const updateUserDetailsById = async (userId, updateFields) => {
+    try {
+        return await User.findByIdAndUpdate(
+            userId,
+            updateFields,
+            { new: true },
+        );
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        );
+    }
+}
+
+/**
+ * Retrieves user information based on the username.
+ * @param {string} username - The username of the user to retrieve.
+ * @returns {Promise<Object|null>} - Returns user info including username, profile image, and createdAt date. Returns `null` if user is not found.
+ * @throws {CustomError} - Throws an error if a database issue occurs.
+ */
+const getUserInfo = async (username) => {
+    try {
+        return await User.findOne({ username })
+        .select('username createdAt profileImage')
+        .lean();
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
         )
     }
 }
@@ -111,4 +318,9 @@ module.exports = {
     createUser,
     getUserDetailsByEmailWithPassword,
     updateUserPassword,
-}
+    getSuggestedUsers,
+    getUserById,
+    getUserByUsername,
+    updateUserDetailsById,
+    getUserInfo
+}  

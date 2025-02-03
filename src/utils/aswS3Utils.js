@@ -36,7 +36,6 @@ const generatePreSignedUrl = async (fileKey, IsPost) => {
  * @param {boolean} isPost - Whether the file belongs to posts (true) or profile images (false)
  * @returns {string} - The file key that uploaded in S3 
  */
-
 const uploadFileToS3 = async (file, userId, isPost) => {
     try {
         const bucket = isPost ? postBucket : profileBucket;

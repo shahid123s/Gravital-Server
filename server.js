@@ -5,9 +5,10 @@ const dotenv = require('dotenv');
 dotenv.config();
 const {client} = require('./src/config/redisConfig')
 const connectMongoDB = require('./src/config/dbConfig')
-const userRoute = require('./Routes/User/userRoutes');
+const userRoute = require('./src/modules/user/userRoutes');
 const authRoute = require('./src/modules/auth/authRoute')
 const adminRoute = require('./Routes/Admin/adminRoutes');
+const followRoute = require('./src/modules/follows/followRoute')
 const postRoute = require('./Routes/User/postRoutes');
 const corsConfig = require('./src/config/corsConfig');
 const {port} = require('./src/config/appConfig').app;
@@ -22,7 +23,8 @@ app.use(corsConfig);
 
 app.use('/api/auth', authRoute )
 app.use('/user/api/post',postRoute );
-app.use('/user/api', userRoute)
+app.use('/api/user', userRoute)
+app.use('/api/follow', followRoute )
 app.use('/admin/api', adminRoute);
 
 

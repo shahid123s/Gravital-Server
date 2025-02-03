@@ -1,0 +1,221 @@
+const { response } = require("express");
+const { getCachedProfileImageUrl } = require("../../utils/redisUtils");
+const { HTTP_STATUS_CODE } = require("../../../constants/httpStatus");
+const { ResponseMessage } = require("../../../constants/responseMessage");
+const { convertDateToMMYY } = require('../../utils/dateUtils');
+const { getPostCount } = require('../post/postServices')
+const { getArchivePostCount } = require('../archive/archiveServices');
+const { checkUserIsBlocked } = require("../block/blockServices");
+const PreDefinedUserDetails = require("../../../Constants/predefinedUserDetails");
+const { uploadFileToS3 } = require("../../utils/aswS3Utils");
+const {
+    getSuggestedUsers,
+    getUserById,
+    getUserByUsername,
+    updateUserDetailsById,
+    getUserInfo,
+} = require("./userService");
+const {
+    getFollowersCount,
+    getFollowingsCount,
+    checkIsFollowed
+} = require('../follows/followServices');
+
+/**
+ * Controller to get a list of suggested users for the logged-in user.
+ * Excludes users who are already followed or blocked.
+ * Fetches and caches profile images before sending the response.
+ *
+ * @param {Object} req - Express request object.
+ * @param {Object} req.user - User object extracted from authentication middleware.
+ * @param {string} req.user.userId - The ID of the currently logged-in user.
+ * @param {Object} res - Express response object.
+ * @param {Function} next - Express next middleware function.
+ * @returns {Promise<void>} - Sends a JSON response with a list of suggested users.
+ */
+const suggestUsers = async (req, res, next) => {
+    const { userId } = req.user;
+    try {
+        const suggestion = await getSuggestedUsers(userId);
+
+        const usersList = await Promise.all(
+            suggestion.map(async (user) => {
+                user.profileImage = await getCachedProfileImageUrl(
+                    user._id,
+                    user.profileImage,
+                );
+                return user;
+            })
+        );
+
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+            .json({
+                success: true,
+                usersList,
+                message: ResponseMessage.SUCCESS.OK,
+            });
+    } catch (error) {
+        next(error)
+    }
+
+}
+
+/**
+ * Fetches user details, including followers count, following count, post count, and archive count.
+ * If a username is provided, it fetches the corresponding user; otherwise, it fetches details for the authenticated user.
+ * 
+ * @param {Object} req - Express request object containing `userId` in `req.user` and optional `username` in `req.query`.
+ * @param {Object} res - Express response object for sending JSON responses.
+ * @param {Function} next - Express middleware next function.
+ * @returns {Promise<void>} - Sends a JSON response with user details.
+ */
+const userDetails = async (req, res, next) => {
+    const { userId } = req.user;
+    const { username } = req.query;
+
+    let user;
+    let followersCount = 0;
+    let followingCount = 0;
+    let isFollowed = false;
+    let postCount = 0;
+    let archivePostCount = 0;
+
+    if (!username) {
+        [user, followersCount, followingCount, postCount, archivePostCount] = await Promise.all([
+            getUserById(userId),
+            getFollowersCount(userId),
+            getFollowingsCount(userId),
+            getPostCount(userId),
+            getArchivePostCount(userId),
+        ]);
+    } else {
+        user = await getUserByUsername(username);
+
+        if (!user) {
+            return res.status(HTTP_STATUS_CODE.NOT_FOUND)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.NOT_FOUND,
+                });
+        }
+
+        const isBlock = await checkUserIsBlocked(userId, user._id);
+        if (isBlock) {
+            return res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+                .json({
+                    success: true,
+                    user: PreDefinedUserDetails,
+                    message: ResponseMessage.SUCCESS.OK,
+                });
+        };
+
+        [followersCount, followingCount, isFollowed, postCount, archivePostCount] = await Promise.all([
+            getFollowersCount(user._id),
+            getFollowingsCount(user._id),
+            checkIsFollowed(userId, user._id),
+            getPostCount(user._id),
+            getArchivePostCount(user._id),
+        ])
+
+        if (user && user.profileImage) {
+            const profileImage = await getCachedProfileImageUrl(user._id, user.profileImage);
+
+            return res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+                .json({
+                    user: {
+                        ...user,
+                        profileImage,
+                        postCount: postCount - archivePostCount,
+                        followersCount,
+                        followingCount,
+                        isFollowed,
+                    },
+                    success: true,
+                    message: ResponseMessage.SUCCESS.OK,
+                });
+        };
+    };
+
+    res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+        .json({
+            user: {
+                ...user,
+                postCount: postCount - archivePostCount,
+                followersCount,
+                followingCount,
+                isFollowed,
+            },
+            success: true,
+            message: ResponseMessage.SUCCESS.OK,
+        });
+
+
+}
+
+/**
+ * Updates the user's profile details, including bio, gender, and profile image.
+ * @param {Object} req - Express request object containing user data and file.
+ * @param {Object} req.user - The authenticated user object.
+ * @param {string} req.user.userId - The ID of the authenticated user.
+ * @param {Object} req.body - The request body containing the profile update fields.
+ * @param {string} [req.body.bio] - The new bio for the user (optional).
+ * @param {string} [req.body.gender] - The new gender for the user (optional).
+ * @param {Object} [req.file] - The uploaded profile image file (optional).
+ * @param {Object} res - Express response object.
+ * @param {Function} next - Express next middleware function.
+ * @returns {Promise<void>} - Responds with success or passes an error to the next middleware.
+ */
+const updateProfile = async (req, res, next) => {
+    const { userId } = req.user;
+    const { bio, gender } = req.body;
+    const file = req.file;
+
+    try {
+        const filekey = file ? await uploadFileToS3(file, userId, false) : null;
+        const updateFields = { bio, gender };
+        if (filekey) updateFields.profileImage = filekey
+        await updateUserDetailsById(userId, updateFields);
+
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.UPDATED
+            })
+    } catch (error) {
+        next(error)
+    }
+}
+
+/**
+ * Retrieves and processes the profile information of a user.
+ * @param {object} req - The request object containing the query parameters.
+ * @param {object} res - The response object to send the processed data.
+ * @param {Function} next - The next middleware function to handle errors.
+ * @returns {void} - Sends the user data as a response or passes error to the next middleware.
+ * @throws {CustomError} - Throws an error if the user retrieval or image processing fails.
+ */
+const aboutProfile = async (req, res, next) => {
+    const { username } = req.query;
+
+    try {
+        const user = await getUserInfo(username);
+        user.createdAt = convertDateToMMYY(user.createdAt);
+        user.profileImage = await getCachedProfileImageUrl(user.profileImage);
+
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK).json({
+            success: true,
+            message: ResponseMessage.SUCCESS.UPDATED,
+            user
+        });
+    } catch (error) {
+        next(error)
+    }
+
+}
+
+module.exports = {
+    suggestUsers,
+    userDetails,
+    updateProfile,
+    aboutProfile,
+}
