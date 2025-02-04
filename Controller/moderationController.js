@@ -8,78 +8,7 @@ const { reportActionButton } = require('../DeletingFolder/library/filteration');
 const { convertStringToObjectID } = require('../services/MongoDb/mongooseAction');
 
 
-const userStatus = async (req, res) => {
-    const { userId } = req.query;
-    const currentUserId = req.user.userId;
-    // console.log('is here', currentUserId, restrictedUserId)
-    try {
-        const [isRestricted, isBlocked] = await Promise.all([
-            Restrict.exists({
-                restrictedBy: currentUserId,
-                restrictedUser: userId,
-            }),
-            Block.exists({
-                blockerId: currentUserId,
-                blockedId: userId
-            })
-        ])
 
-
-        // const isRestricted = response ? true : false;
-        console.log('shit', isRestricted, isBlocked)
-
-
-        return res.status(STATUS_CODE.SUCCESS_OK).json({ isRestricted: !!isRestricted, isBlocked: !!isBlocked, message: ResponseMessage.SUCCESS.OK })
-    } catch (error) {
-
-    }
-}
-
-const toggleRestrict = async (req, res) => {
-    const { restrictedUser } = req.body;
-    const currentUserId = req.user.userId;
-    console.log(restrictedUser, currentUserId, 'okay naah..')
-    try {
-        const isRestricted = await Restrict.findOne({
-            restrictedBy: restrictedUser,
-            restrictedBy: currentUserId,
-        })
-        console.log(isRestricted, 'ith vanna');
-        if (isRestricted) {
-            const response = await Restrict.findByIdAndDelete(isRestricted._id);;
-            console.log('unRestrict', response);
-            return res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.OK })
-
-        }
-        const restriction = new Restrict({
-            restrictedBy: currentUserId,
-            restrictedUser: restrictedUser,
-
-        })
-        await restriction.save();
-        console.log('kona vanna')
-        return res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.OK })
-
-    } catch (error) {
-        console.log(error);
-
-    }
-}
-
-const reportUser = async (req, res) => {
-    const { userId, message } = req.body;
-    const currentUserId = req.user.userId;
-    console.log(userId, message, currentUserId);
-
-    const report = new Report({
-        reporterId: currentUserId,
-        reportMessage: message,
-        reportedId: userId,
-        reportType: 'user',
-    })
-    await report.save();
-    res.status(STATUS_CODE.SUCCESS_OK).json({ message: ResponseMessage.SUCCESS.OK })
-}
 
 const toggleBlock = async (req, res) => {
     const { userId } = req.body;

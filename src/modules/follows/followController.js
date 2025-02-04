@@ -6,6 +6,21 @@ const {
     createFollowRelationship,
 } = require('./followServices')
 
+/**
+ * Toggles the follow status between two users.
+ *
+ * - If the user is already following the target user, it removes the follow relationship.
+ * - If the user is not following the target user, it creates a new follow relationship.
+ *
+ * @param {Object} req - Express request object.
+ * @param {Object} req.user - The authenticated user data.
+ * @param {string} req.user.userId - The ID of the user performing the follow/unfollow action.
+ * @param {Object} req.body - The request body containing the target user ID.
+ * @param {string} req.body.userId - The ID of the target user to follow/unfollow.
+ * @param {Object} res - Express response object.
+ * @param {Function} next - Express next function for error handling.
+ * @returns {Promise<void>} - Sends a JSON response with success status.
+ */
 const toggleFollow = async (req, res, next) => {
     const {userId} = req.user;
     const targetUserId = req.body.userId;
@@ -32,7 +47,12 @@ const toggleFollow = async (req, res, next) => {
             })
         }
         
-        await createFollowRelationship()
+        await createFollowRelationship(userId, targetUserId);
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+        .json({
+            success: true,
+            message:ResponseMessage.SUCCESS.UPDATED,
+        })
 
     } catch (error) {
         next(error)

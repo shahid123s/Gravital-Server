@@ -10,6 +10,8 @@ const authRoute = require('./src/modules/auth/authRoute')
 const adminRoute = require('./Routes/Admin/adminRoutes');
 const followRoute = require('./src/modules/follows/followRoute')
 const postRoute = require('./Routes/User/postRoutes');
+const reportRoute = require('./src/modules/report/reportRoute');
+const restrictionRoute = require('./src/modules/restriction/restrictionRoute');
 const corsConfig = require('./src/config/corsConfig');
 const {port} = require('./src/config/appConfig').app;
 
@@ -22,9 +24,11 @@ app.use(express.json());
 app.use(corsConfig);
 
 app.use('/api/auth', authRoute )
-app.use('/user/api/post',postRoute );
 app.use('/api/user', userRoute)
 app.use('/api/follow', followRoute )
+app.use('/api/report', reportRoute )
+app.use('/api/restriction', restrictionRoute )
+app.use('/user/api/post',postRoute );
 app.use('/admin/api', adminRoute);
 
 

@@ -20,6 +20,7 @@ const {
     getFollowingsCount,
     checkIsFollowed
 } = require('../follows/followServices');
+const { checkIsRestricted } = require("../restriction/restrictionServices");
 
 /**
  * Controller to get a list of suggested users for the logged-in user.
@@ -213,9 +214,48 @@ const aboutProfile = async (req, res, next) => {
 
 }
 
+/**
+ * Retrieves the restriction and block status of a target user relative to the requesting user.
+ *
+ * @param {Object} req - Express request object.
+ * @param {Object} req.query - Query parameters from the request.
+ * @param {string} req.query.userId - The ID of the target user whose status is being checked.
+ * @param {Object} req.user - Authenticated user object.
+ * @param {string} req.user.userId - The ID of the authenticated user making the request.
+ * @param {Object} res - Express response object.
+ * @param {Function} next - Express next middleware function.
+ *
+ * @returns {Promise<void>} - Responds with a JSON object containing restriction and block status.
+ * @throws {Error} - Passes errors to the next middleware.
+ */
+const userStatus = async (req, res, next) => {
+    const {userId: targetUserId} = req.query;
+    const {userId}  = req.user;
+
+    try {
+        const [isRestricted, isBlocked] = await Promise.all([
+            checkIsRestricted(userId, targetUserId),
+            checkUserIsBlocked(userId, targetUserId),
+        ]);
+
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+        .json({
+            success: true,
+            message: ResponseMessage.SUCCESS.OK,
+            isRestricted,
+            isBlocked,
+        })
+
+    } catch (error) {
+        next(error)
+    }
+}
+
+
 module.exports = {
     suggestUsers,
     userDetails,
     updateProfile,
     aboutProfile,
+    userStatus
 }
