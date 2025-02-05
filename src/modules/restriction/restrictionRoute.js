@@ -4,6 +4,6 @@ const { toggleRestrict } = require('./restrictionController');
 
 
 router.post('/user',toggleRestrict);
-router.post('/post', toggleRestrictPost)
+
 
 module.exports = router

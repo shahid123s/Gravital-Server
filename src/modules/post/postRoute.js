@@ -12,6 +12,6 @@ const {
 router.post('/create', dynamicUpload('post'), addPost);
 router.get('/get-post', getAllPosts);
 router.get('/user', getUsersPost);
-route.post('/delete', deletePost);
+router.post('/delete', deletePost);
 
-module.exports = router
+module.exports = router;

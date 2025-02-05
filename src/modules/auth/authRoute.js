@@ -8,18 +8,19 @@ const {
     userLogout,
     sentOTPOnForgetPassword,
     adminLogin,
+    adminLogout,
 } = require('./authController')
 
 
-router.post('/send-otp', sentOTP)
+router.post('/send-otp', sentOTP);
 router.post('/otp-verification', otpVerification);
 router.post('/register', register);
 router.post('/user/login', userLogin);
-router.post('/user/logout',userLogout)
+router.post('/user/logout',userLogout);
 // router.post('/user/refresh-token')
 router.post('/user/sent-otp/forget-password',sentOTPOnForgetPassword );
-router.post('/user/reset-password', )
-router.post('/admin/login', adminLogin)
-router.post('/admin/logout', )
+router.post('/user/reset-password', );
+router.post('/admin/login', adminLogin);
+router.post('/admin/logout', adminLogout);
 
 module.exports = router;
