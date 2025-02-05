@@ -7,3 +7,6 @@ router.route('/')
 .post(archivePost);
 
 router.post('/publish', publishPost );
+
+
+module.exports = router;

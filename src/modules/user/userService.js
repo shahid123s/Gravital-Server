@@ -5,7 +5,8 @@ const CustomError = require('../../utils/customError');
 const { email } = require('../../config/appConfig');
 const { toObjectId } = require('../../utils/dbUtils');
 const { username } = require('../../../Constants/predefinedUserDetails');
-
+const mongoose = require('mongoose')
+ 
 /**
  * Checks the user is exists with username in mongoDB
  * @param {string} username - username of the user 
@@ -253,7 +254,7 @@ const getUserById = async (userId) => {
 
         // Query user without sensitive fields & use .lean() for performance
         const user = await User.findById(userId)
-            .select('-password -refreshToken -role')
+            .select('-password ')
             .lean();
 
         return user || null; // Return null if user not found

@@ -76,9 +76,9 @@ const getAllPosts = async (req, res, next) => {
 
         const blockedIds = [...blockedByUsers, ...blockedUsers];
 
-        const posts = await fetchPosts(archivedPostIds, blockedIds, page, limit);
+        const response = await fetchPosts(archivedPostIds, blockedIds, page, limit);
 
-        posts = await enrichPosts(posts, userId);
+        posts = await enrichPosts(response, userId);
 
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({

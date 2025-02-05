@@ -18,3 +18,5 @@ router.get('/reports', getAllReport)
 router.route('/report')
 .get(getReportDetails)
 .patch(updateReportStatus);
+
+module.exports = router

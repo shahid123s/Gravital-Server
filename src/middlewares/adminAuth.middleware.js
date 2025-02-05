@@ -26,7 +26,7 @@ const authenticateAdmin = async (req, res, next) => {
     }
     try {
         const decode = await decodeAccessToken(token);
-        if (decode.role != ADMIN) {
+        if (decode.role != ad) {
             throw new CustomError(
                 ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
                 HTTP_STATUS_CODE.UNAUTHORIZED,

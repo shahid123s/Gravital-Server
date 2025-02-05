@@ -6,46 +6,49 @@ const ERROR_CODES = require('../../constants/errorCodes');
 const {USER} = require('../../constants/roles');
 
 const authenticateUser = async (req, res, next) => {
-    const authHead = req.header['authorization'];
-    if (!authHead || !authHead.startsWith('Bearer ')) {
-        throw new CustomError(
-            ResponseMessage.ERROR.AUTHORIZATION.INVALID_ACCESS_TOKEN,
-            HTTP_STATUS_CODE.UNAUTHORIZED,
-            ERROR_CODES.INVALID_TOKEN
-        );
-    }
-
-    const token = authHead && authHead.split(' ')[1];
-
-    if (!token) {
-        throw new CustomError(
-            ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
-            HTTP_STATUS_CODE.UNAUTHORIZED,
-            ERROR_CODES.INVALID_TOKEN
-        );
-    }
-
     try {
-        const decode = await decodeAccessToken(token);
-        if (decode.role != USER) {
+        // console.log('Headers:', req.headers); // Debugging
+        const authHead = req.headers['authorization'];
+
+        // console.log(authHead)
+
+        if (!authHead || !authHead.startsWith('Bearer')) {
+            throw new CustomError(
+                ResponseMessage.ERROR.AUTHORIZATION.INVALID_ACCESS_TOKEN,
+                HTTP_STATUS_CODE.UNAUTHORIZED,
+                ERROR_CODES.INVALID_TOKEN
+             )
+             
+        }
+
+        const token = authHead.split(' ')[1];
+        if (!token) {
             throw new CustomError(
                 ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
                 HTTP_STATUS_CODE.UNAUTHORIZED,
-                ERROR_CODES.INVALID_TOKEN,
+                ERROR_CODES.INVALID_TOKEN
             );
         }
+
+        const decode = await decodeAccessToken(token);
+        // console.log('Decoded Token:', decode); // Debugging
+
+        if (!decode || decode.role !== USER) {
+            throw new CustomError(
+                ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
+                HTTP_STATUS_CODE.UNAUTHORIZED,
+                ERROR_CODES.INVALID_TOKEN
+            );
+        }
+
         req.user = decode;
         next();
     } catch (error) {
-        console.log(error.message);
-        throw new CustomError(
-            ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
-            HTTP_STATUS_CODE.UNAUTHORIZED,
-            ERROR_CODES.INVALID_TOKEN
-        );
+        console.error('Authentication Error:', error); // Debugging
+        next(error); // Pass the error to the errorHandler
     }
+};
 
-}
 
 module.exports = {
     authenticateUser,

@@ -1,5 +1,6 @@
 const { HTTP_STATUS_CODE } = require('../../../constants/httpStatus')
 const { ResponseMessage } = require('../../../constants/responseMessage');
+const { decodeRefreshToken } = require('../../utils/jwtUtils');
 const { storeRefreshToken } = require('../../utils/redisUtils');
 const {
     existsUserByUsername,
@@ -7,6 +8,7 @@ const {
     createUser,
     getUserDetailsByEmailWithPassword,
     updateUserPassword,
+    getUserById,
 } = require('../user/userService');
 const {
     hashPassword,
@@ -298,9 +300,11 @@ const userLogout = async (req, res, next) => {
         // Log cookies from the request (res.cookies doesn't exist)
         console.log('Cookies before logout:', req.cookies);
 
+
+
         // Respond with a success message
         res
-        .status(STATUS_CODE.SUCCESS_OK)
+        .status(HTTP_STATUS_CODE.SUCCESS_OK)
         .json({
             success: true,
             message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGOUT,
@@ -497,6 +501,37 @@ const adminLogout = async (req, res, next) => {
         next(error); // Pass error to the next middleware for handling
     }
 };
+
+
+const refreshAccessToken = async (req, res, next) => {
+    const {refreshToken} = req.cookies;
+    if(!refreshToken ){
+        return res
+        .status(HTTP_STATUS_CODE.FORBIDDEN)
+        .json({
+            success:false,
+            message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
+        })
+    }
+    try {
+        const decode  = await decodeRefreshToken(refreshToken);
+        const user  = await getUserById(decode.userId);
+        if(!user || user.refreshToken !== refreshToken){
+            console.log('ivda na ')
+            return res
+        .status(HTTP_STATUS_CODE.FORBIDDEN)
+        .json({
+            success:false,
+            message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
+        })
+        }
+        const accessToken = await generateAccessToken(user._id, user.role);
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK).json({accessToken, massage: ResponseMessage.SUCCESS.OK});
+    } catch (error) {
+        next(error)
+    }
+    }
+
 module.exports = {
     sentOTP,
     otpVerification,
@@ -507,5 +542,6 @@ module.exports = {
     resetPassword,
     adminLogin,
     adminLogout,
+    refreshAccessToken,
 
 }
