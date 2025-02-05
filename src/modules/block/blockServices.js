@@ -86,8 +86,54 @@ const removeBlock = async (id) => {
     }
 }
 
+/**
+ * Retrieves a list of users who have blocked the current user.
+ *
+ * @async
+ * @function getUsersWhoBlockedCurrentUser
+ * @param {string} userId - The ID of the current user.
+ * @returns {Promise<Array<string>>} A promise that resolves to an array of user IDs who blocked the current user.
+ * @throws {CustomError} If a database error occurs.
+ */
+const getUsersWhoBlockedCurrentUser = async (userId) => {
+    try {
+        const blockedByUsers = await Block.find({ blockedId: userId }).select('blockerId').lean();
+        return blockedByUsers.map(block => block.blockerId); // Extract only blocker IDs
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        );
+    }
+};
+
+/**
+ * Retrieves a list of users that the current user has blocked.
+ *
+ * @async
+ * @function getBlockedUsersByCurrentUser
+ * @param {string} userId - The ID of the current user.
+ * @returns {Promise<Array<string>>} A promise that resolves to an array of user IDs that the current user has blocked.
+ * @throws {CustomError} If a database error occurs.
+ */
+const getBlockedUsersByCurrentUser = async (userId) => {
+    try {
+        const blockedUsers = await Block.find({ blockerId: userId }).select('blockedId').lean();
+        return blockedUsers.map(block => block.blockedId); // Extract only blocked user IDs
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        );
+    }
+};
+
 module.exports = {
     checkUserIsBlocked,
     createBlock,
     removeBlock,
+    getUsersWhoBlockedCurrentUser,
+    getBlockedUsersByCurrentUser,
 }

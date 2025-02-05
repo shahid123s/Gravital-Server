@@ -9,8 +9,11 @@ const userRoute = require('./src/modules/user/userRoutes');
 const authRoute = require('./src/modules/auth/authRoute')
 const adminRoute = require('./Routes/Admin/adminRoutes');
 const followRoute = require('./src/modules/follows/followRoute')
-const postRoute = require('./Routes/User/postRoutes');
+const postRoute = require('./src/modules/post/postRoute');
+const saveRoute = require('./src/modules/savedPost/savedPostRoute');
 const reportRoute = require('./src/modules/report/reportRoute');
+const archiveRoute = require('./src/modules/archive/archiveRoute');
+const likeRoute = require('./src/modules/like/likeRoute');
 const restrictionRoute = require('./src/modules/restriction/restrictionRoute');
 const corsConfig = require('./src/config/corsConfig');
 const {port} = require('./src/config/appConfig').app;
@@ -28,7 +31,10 @@ app.use('/api/user', userRoute)
 app.use('/api/follow', followRoute )
 app.use('/api/report', reportRoute )
 app.use('/api/restriction', restrictionRoute )
-app.use('/user/api/post',postRoute );
+app.use('/api/like', likeRoute)
+app.use('/api/post',postRoute );
+app.use('/api/save',saveRoute );
+app.use('/api/archive',archiveRoute );
 app.use('/admin/api', adminRoute);
 
 

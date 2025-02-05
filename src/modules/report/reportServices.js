@@ -35,7 +35,29 @@ const createReport = async (userId, reportedId, type, message) => {
     }
 }
 
+/**
+ * Removes all reports associated with a specific post.
+ *
+ * @async
+ * @function removeReportedPosts
+ * @param {string} postId - The ID of the post whose reports need to be removed.
+ * @returns {Promise<Object>} The result of the delete operation.
+ *
+ * @throws {CustomError} Throws an error if the deletion fails due to a database issue.
+ */
+const removeReportedPosts = async (postId) => {
+    try {
+        return await Report.deleteMany({postId});
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        )
+    }
+}
+
 module.exports = {
     createReport,
-    
+    removeReportedPosts,
 }

@@ -24,6 +24,25 @@ const existsUserByUsername = async (username) => {
 }
 
 /**
+ * Checks if a user exists in the database by their ID.
+ *
+ * @param {string} userId - The MongoDB user ID to check.
+ * @returns {Promise<boolean>} - Returns `true` if the user exists, otherwise `false`.
+ * @throws {CustomError} - Throws an error if the database query fails.
+ */
+const doesUserExist = async (userId) => {
+    try {
+        return !!(await User.exists({ _id: userId }));
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        );
+    }
+};
+
+/**
  * Checks the user is exists with email in mongoDB
  * @param {string} email - User email 
  * @returns {Promise<object>} - A boolean or MongoDb ObjectId.
@@ -315,6 +334,7 @@ const getUserInfo = async (username) => {
 module.exports = {
     existsUserByUsername,
     existsUserByEmail,
+    doesUserExist,
     createUser,
     getUserDetailsByEmailWithPassword,
     updateUserPassword,

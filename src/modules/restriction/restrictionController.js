@@ -27,14 +27,11 @@ const toggleRestrict = async (req, res, next) => {
 
         if (isRestricted) {
             await removeRestriction(isRestricted._id);
-            return res
-                .status(HTTP_STATUS_CODE.SUCCESS_OK)
-                .json({
-                    success: true,
-                    message: ResponseMessage.SUCCESS.UPDATED,
-                });
+    
+        }else {
+            await createRestriction(userId, targetUserId);
         }
-        await createRestriction(userId, targetUserId);
+        
         res
             .status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({
