@@ -552,5 +552,4 @@ module.exports = {
     adminLogin,
     adminLogout,
     refreshAccessToken,
-
 }

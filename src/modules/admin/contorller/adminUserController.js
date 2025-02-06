@@ -118,8 +118,9 @@ const toggleBan = async (req, res, next) => {
  * @throws {CustomError} Throws a CustomError if any database or server errors occur during the process.
  */
 const getUserDetails = async (req, res, next) => {
-    const { userId } = req.body
+    const { userId } = req.query
     try {
+        console.log(userId)
         const user = await getUserById(userId);
         if (!user) {
 

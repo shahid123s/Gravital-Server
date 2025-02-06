@@ -4,6 +4,9 @@ const { getPostsList, getPostDetails, togglePostRestriction, boostPost } = requi
 const { getAllReport, getReportDetails, updateReportStatus } = require('./contorller/adminReportController');
 const router = express.Router();
 
+
+router.post('/refresh-token', )
+
 router.get('/users', getUserList);
 router.patch('/user/toggle-ban', toggleBan);
 router.get('/user/user-details', getUserDetails);

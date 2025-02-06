@@ -25,12 +25,12 @@ const { isArchived, deleteArchive, makeArchive, fetchArchivedPost } = require(".
 const archivePost = async (req, res, next) => {
     const { userId } = req.user;
     const { postId } = req.body;
-
+    
     try {
-
         const isPostExist = await doesPostExist(postId, true);
+        console.log(isPostExist)
 
-        if (!isPostExist || isPostExist.userId !== userId) {
+        if (!isPostExist || isPostExist.userId != userId) {
             return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
                 success: false,
                 message: ResponseMessage.ERROR.BAD_REQUEST,
@@ -74,7 +74,8 @@ const getArchivedPosts = async (req, res, next) => {
     const { userId } = req.user;
     try {
         const archivedPost = await fetchArchivedPost(userId);
-        const posts = await enrichPosts(archivedPost, userId);
+        const posts = await enrichPosts(archivedPost, userId, true);
+        console.log(posts)
 
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({

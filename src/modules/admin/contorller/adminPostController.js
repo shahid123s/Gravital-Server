@@ -34,7 +34,7 @@ const getPostsList = async (req, res, next) => {
             countPostsList(filter),
         ]);
 
-        const totalPage = Math.ceil(totalCount / limit);
+        const totalPages = Math.ceil(totalCount / limit);
 
         const postList = await Promise.all(
             posts.map(async (post) => ({
@@ -48,7 +48,7 @@ const getPostsList = async (req, res, next) => {
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({
                 postList,
-                totalPage,
+                totalPages,
                 currentPage: page,
                 message: ResponseMessage.SUCCESS.OK,
                 success: true,

@@ -11,18 +11,26 @@ const { checkUserIsSavedThePost } = require("../../savedPost/savedPostServices")
  * @param {string} userId - The user ID to check likes and saved status.
  * @returns {Promise<Array<Object>>} A promise that resolves to an array of enriched post objects.
  */
-const enrichPosts = async (posts, userId) => {
+const enrichPosts = async (posts, userId, forArchive = false) => {
+
+    console.log(posts)
+
+
     return Promise.all(
         posts.map(async (post) => {
-            const postId = post._id;
+            const postId = forArchive? post.postId._id :post._id;
+            const fileName = forArchive? post.postId.fileName: post.fileName;
+            const postOwnerId = forArchive ? post.postId.userId: post.userId;
 
-            const postUrl = await getCachedPostUrl(postId, post.fileName);
-            post.userId.profileImage = await getCachedProfileImageUrl(post.userId._id, post.userId.profileImage);
+
+            const postUrl = await getCachedPostUrl(postId, fileName);
+            if(forArchive) post.postId.postUrl = postUrl
+            post.userId.profileImage = await getCachedProfileImageUrl(postOwnerId._id, postOwnerId.profileImage);
 
             const [likedByUser, likedCount, isSavedByUser] = await Promise.all([
                 checkUserIsLikedThePost(userId,postId),
                 getLikedCountofPost(postId),
-                checkUserIsSavedThePost(userId, postId),
+                checkUserIsSavedThePost(userId._id, postId),
             ]);
 
             return {

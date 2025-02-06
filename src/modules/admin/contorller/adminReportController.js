@@ -1,5 +1,6 @@
 const { HTTP_STATUS_CODE } = require("../../../../constants/httpStatus");
 const { ResponseMessage } = require("../../../../constants/responseMessage");
+const { reportActionButton } = require("../../../utils/actionButtonUtils");
 const { toObjectId } = require("../../../utils/dbUtils");
 const { getCachedPostUrl, getCachedProfileImageUrl } = require("../../../utils/redisUtils");
 const { getReportList, getReportListCount, fetchReportDetails, updateReport } = require("../services/adminReportService");
@@ -16,19 +17,21 @@ const { getReportList, getReportListCount, fetchReportDetails, updateReport } = 
 const getAllReport = async (req, res, next) => {
     const { search, page = 1, limit = 10, filter } = req.query;
     const skip = (page - 1) * limit;
+    console.log(filter)
     const searchData = search?.trim()?.replace(/[^a-zA-Z\s]/g, "");
-    const filterData = filter !== 'All' ? filter.toLowerCase() : null
+    const filterData = filter !== 'All'  ? filter.toLowerCase() :  null
     const filterStage = filterData ? { reportType: filterData } : {};
 
     const matchStage = searchData
         ? { reportMessage: { $regex: searchData, $options: "i" } }
         : {};
 
-    try {
-        const [reports, totalCount] = await Promise.all([
-            getReportList({ ...filterStage, ...matchStage }, +skip, +limit),
-            getReportListCount({ ...filter, ...matchStage }),
-        ]);
+        
+        try {
+            const [reports, totalCount] = await Promise.all([
+                getReportList({ ...filterStage, ...matchStage }, skip, limit),
+                getReportListCount({...matchStage, ...filterStage} ),
+            ]);
 
         const reportDetails = await Promise.all(
             reports.map(async (report) => {
@@ -53,6 +56,8 @@ const getAllReport = async (req, res, next) => {
         );
 
         const filteredReports = reportDetails.filter((report) => report !== null);
+
+        console.log(totalCount)
 
         const totalPage = totalCount.length > 0 ? Math.ceil(totalCount[0].totalCount / limit) : 1;
 

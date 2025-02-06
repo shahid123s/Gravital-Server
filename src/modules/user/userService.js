@@ -1,6 +1,6 @@
 const User = require('../user/userModel')
-const { DATABASE_ERROR } = require('../../../constants/errorCodes');
-const { SERVER_ERROR } = require('../../../constants/httpStatus').HTTP_STATUS_CODE;
+const { DATABASE_ERROR, ACCESS_DENIED } = require('../../../constants/errorCodes');
+const { SERVER_ERROR,BAD_REQUEST } = require('../../../constants/httpStatus').HTTP_STATUS_CODE;
 const CustomError = require('../../utils/customError');
 const { email } = require('../../config/appConfig');
 const { toObjectId } = require('../../utils/dbUtils');
@@ -248,15 +248,15 @@ const getSuggestedUsers = async (userId) => {
 const getUserById = async (userId, forChecking = false) => {
     try {
         // Validate userId format
-        if (!mongoose.Types.ObjectId.isValid(userId)) {
-            throw new CustomError("Invalid user ID", HTTP_STATUS_CODE.BAD_REQUEST, ERROR_CODE.INVALID_INPUT);
-        }
+        // if (!mongoose.Types.ObjectId.isValid(userId)) {
+        //     throw new CustomError("Invalid user ID", BAD_REQUEST, ACCESS_DENIED);
+        // }
 
         const exculdeProperties = forChecking ? '-password ': '-password -refreshToken -role'
 
         // Query user without sensitive fields & use .lean() for performance
         const user = await User.findById(userId)
-            .select('-password ')
+            .select(exculdeProperties)
             .lean();
 
         return user || null; // Return null if user not found

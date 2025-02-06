@@ -137,7 +137,7 @@ const fetchArchivedPost = async (userId) => {
                 path: 'userId',
                 select: 'username fullName profileImage',
             },
-        });
+        }).lean();
 
     } catch (error) {
         throw new CustomError(
