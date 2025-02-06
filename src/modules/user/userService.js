@@ -245,12 +245,14 @@ const getSuggestedUsers = async (userId) => {
  * @returns {Promise<Object|null>} - Returns the user object if found, otherwise null.
  * @throws {CustomError} - Throws an error if the userId is invalid or a database error occurs.
  */
-const getUserById = async (userId) => {
+const getUserById = async (userId, forChecking = false) => {
     try {
         // Validate userId format
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             throw new CustomError("Invalid user ID", HTTP_STATUS_CODE.BAD_REQUEST, ERROR_CODE.INVALID_INPUT);
         }
+
+        const exculdeProperties = forChecking ? '-password ': '-password -refreshToken -role'
 
         // Query user without sensitive fields & use .lean() for performance
         const user = await User.findById(userId)

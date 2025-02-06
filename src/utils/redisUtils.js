@@ -37,7 +37,7 @@ const storeOtp = async (email, otp) => {
 const storeRefreshToken = async (email, token) => {
     try {
         client.setEx(`token${email}`, 604800, token );
-        console.log('Token stored in redis');
+        console.log('Token stored in redis' ,email);
         return 'Token stored Successfully'
     } catch (error) {
         console.log(error, 'redis')

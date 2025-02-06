@@ -14,6 +14,7 @@ const saveRoute = require('./src/modules/savedPost/savedPostRoute');
 const reportRoute = require('./src/modules/report/reportRoute');
 const archiveRoute = require('./src/modules/archive/archiveRoute');
 const likeRoute = require('./src/modules/like/likeRoute');
+const blockRoute = require('./src/modules/block/blockRoutes');
 const restrictionRoute = require('./src/modules/restriction/restrictionRoute');
 const corsConfig = require('./src/config/corsConfig');
 const {authenticateUser} = require('./src/middlewares/userAuthMiddleware');
@@ -35,6 +36,7 @@ app.use('/admin/api', adminRoute);
 app.use('/api/user',authenticateUser ,userRoute)
 app.use('/api/follow',authenticateUser, followRoute)
 app.use('/api/report',authenticateUser, reportRoute)
+app.use('/api/block',authenticateUser, blockRoute)
 app.use('/api/restriction',authenticateUser, restrictionRoute)
 app.use('/api/like',authenticateUser, likeRoute)
 app.use('/api/post',authenticateUser, postRoute);

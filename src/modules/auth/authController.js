@@ -1,7 +1,7 @@
 const { HTTP_STATUS_CODE } = require('../../../constants/httpStatus')
 const { ResponseMessage } = require('../../../constants/responseMessage');
 const { decodeRefreshToken } = require('../../utils/jwtUtils');
-const { storeRefreshToken } = require('../../utils/redisUtils');
+const { storeRefreshToken, getRefreshToken } = require('../../utils/redisUtils');
 const {
     existsUserByUsername,
     existsUserByEmail,
@@ -259,6 +259,8 @@ const userLogin = async (req, res, next) => {
             maxAge: 7 * 24 * 60 * 60 * 1000,
         })
 
+        await storeRefreshToken(email, refreshToken)
+
         res
             .status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({
@@ -515,9 +517,10 @@ const refreshAccessToken = async (req, res, next) => {
     }
     try {
         const decode  = await decodeRefreshToken(refreshToken);
-        const user  = await getUserById(decode.userId);
-        if(!user || user.refreshToken !== refreshToken){
-            console.log('ivda na ')
+        const user  = await getUserById(decode.userId, true);
+        const currentToken = await getRefreshToken(user.email)
+        
+        if(!user || refreshToken !== currentToken){
             return res
         .status(HTTP_STATUS_CODE.FORBIDDEN)
         .json({
@@ -525,8 +528,14 @@ const refreshAccessToken = async (req, res, next) => {
             message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
         })
         }
+
         const accessToken = await generateAccessToken(user._id, user.role);
-        res.status(HTTP_STATUS_CODE.SUCCESS_OK).json({accessToken, massage: ResponseMessage.SUCCESS.OK});
+
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+        .json({
+            accessToken, 
+            massage: ResponseMessage.SUCCESS.OK
+        });
     } catch (error) {
         next(error)
     }

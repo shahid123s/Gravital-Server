@@ -99,6 +99,7 @@ const createPost = async (userId, fileName, caption) => {
  */
 const fetchPosts = async (archivedPostIds, blockedIds, page, limit) => {
     try {
+        console.log(page,'')
         return await Post.find({
             isRestricted: false,
             _id: { $nin: archivedPostIds }, // Exclude archived posts

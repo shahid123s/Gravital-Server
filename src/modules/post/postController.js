@@ -65,7 +65,7 @@ const addPost = async (req, res, next) => {
 const getAllPosts = async (req, res, next) => {
     const limit = 3;
     const { userId } = req.user;
-    const { page } = req.body;
+    const { page } = req.query;
 
     try {
         const [archivedPostIds, blockedByUsers, blockedUsers] = await Promise.all([
@@ -75,7 +75,6 @@ const getAllPosts = async (req, res, next) => {
         ]);
 
         const blockedIds = [...blockedByUsers, ...blockedUsers];
-
         const response = await fetchPosts(archivedPostIds, blockedIds, page, limit);
 
         posts = await enrichPosts(response, userId);

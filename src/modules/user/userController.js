@@ -90,6 +90,7 @@ const userDetails = async (req, res, next) => {
             getArchivePostCount(userId),
         ]);
     } else {
+        console.log('ivda ana ')
         user = await getUserByUsername(username);
 
         if (!user) {
@@ -117,24 +118,30 @@ const userDetails = async (req, res, next) => {
             getPostCount(user._id),
             getArchivePostCount(user._id),
         ])
+        console.log(user)
 
-        if (user && user.profileImage) {
-            const profileImage = await getCachedProfileImageUrl(user._id, user.profileImage);
+        console.log('varunilla')
 
-            return res.status(HTTP_STATUS_CODE.SUCCESS_OK)
-                .json({
-                    user: {
-                        ...user,
-                        profileImage,
-                        postCount: postCount - archivePostCount,
-                        followersCount,
-                        followingCount,
-                        isFollowed,
-                    },
-                    success: true,
-                    message: ResponseMessage.SUCCESS.OK,
-                });
-        };
+    };
+    if (user && user.profileImage) {
+
+        const profileImage = await getCachedProfileImageUrl(user._id, user.profileImage);
+
+        console.log('varuna')
+
+        return res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+            .json({
+                user: {
+                    ...user,
+                    profileImage,
+                    postCount: postCount - archivePostCount,
+                    followersCount,
+                    followingCount,
+                    isFollowed,
+                },
+                success: true,
+                message: ResponseMessage.SUCCESS.OK,
+            });
     };
 
     res.status(HTTP_STATUS_CODE.SUCCESS_OK)
@@ -229,8 +236,8 @@ const aboutProfile = async (req, res, next) => {
  * @throws {Error} - Passes errors to the next middleware.
  */
 const userStatus = async (req, res, next) => {
-    const {userId: targetUserId} = req.query;
-    const {userId}  = req.user;
+    const { userId: targetUserId } = req.query;
+    const { userId } = req.user;
 
     try {
         const [isRestricted, isBlocked] = await Promise.all([
@@ -239,12 +246,12 @@ const userStatus = async (req, res, next) => {
         ]);
 
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
-        .json({
-            success: true,
-            message: ResponseMessage.SUCCESS.OK,
-            isRestricted,
-            isBlocked,
-        })
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.OK,
+                isRestricted,
+                isBlocked,
+            })
 
     } catch (error) {
         next(error)

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-
-router.post('/toggle-block', )
+const {toggleBlock} = require('./blockController')
+router.post('/toggle-block', toggleBlock )
 
 module.exports = router;

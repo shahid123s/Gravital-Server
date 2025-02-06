@@ -25,3 +25,7 @@ router.post('/admin/login', adminLogin);
 router.post('/admin/logout', adminLogout);
 
 module.exports = router;
+
+
+
+'/api/auth/'

@@ -23,7 +23,8 @@ const {
  */
 const toggleFollow = async (req, res, next) => {
     const {userId} = req.user;
-    const targetUserId = req.body.userId;
+    const {userId: targetUserId} = req.body;
+    console.log(req.body, 'ivda')
 
     try {
         if(!targetUserId) {
