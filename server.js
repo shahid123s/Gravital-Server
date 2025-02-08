@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 dotenv.config();
 const { client } = require('./src/config/redisConfig')
+const {initSocket} = require('./src/config/socketConfig')
 const connectMongoDB = require('./src/config/dbConfig')
 const userRoute = require('./src/modules/user/userRoutes');
 const authRoute = require('./src/modules/auth/authRoute')
@@ -27,11 +28,6 @@ const { port } = require('./src/config/appConfig').app;
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: '*'
-    }
-});
 
 let worker, router;
 
@@ -73,6 +69,7 @@ app.use('/api/archive', authenticateUser, archiveRoute);
         await client.connect();  // Explicitly connect to Redis
         console.log('Connected to Redis successfully');
 
+        initSocket(server);
         // Start the Express server only after Redis is ready
         server.listen(port, () => {
             console.log(`Server is running on port ${port}`);

@@ -13,7 +13,6 @@ const { checkUserIsSavedThePost } = require("../../savedPost/savedPostServices")
  */
 const enrichPosts = async (posts, userId, forArchive = false) => {
 
-    console.log(posts)
 
 
     return Promise.all(

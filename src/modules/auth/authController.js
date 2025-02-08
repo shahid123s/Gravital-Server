@@ -222,6 +222,7 @@ const userLogin = async (req, res, next) => {
     const { email, password } = req.body;
     try {
 
+        console.log('ivda varunna')
         const user = await getUserDetailsByEmailWithPassword(email);
         if (!user) {
             return res
