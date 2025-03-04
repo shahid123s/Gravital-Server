@@ -132,6 +132,44 @@ const removeFollow = async (id) => {
     }
 }
 
+/**
+ * Fetches a list of users that the given user is following.
+ *
+ * @async
+ * @function fetchFollowingList
+ * @param {string} userId - The ID of the user whose following list needs to be fetched.
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of user objects.
+ * 
+ * @throws {CustomError} Throws a CustomError if there is a database error.
+ * 
+ * @example
+ * try {
+ *     const followings = await fetchFollowingList("65c1234abcd5678efg910");
+ *     console.log(followings);
+ * } catch (error) {
+ *     console.error(error.message);
+ * }
+ */
+const fetchFollowingList = async (userId) => {
+    try {
+        return await Follow.find({follower: userId})
+        .populate({
+            path: 'following',
+            select: 'fullName profileImage',
+        })
+        .sort({updatedAt: -1})
+        .skip(0)
+        .limit(12)
+        .lean();
+    } catch (error) {
+        throw new CustomError(
+            error.message ,
+            SERVER_ERROR,
+            DATABASE_ERROR
+        );
+    }
+}
+
 module.exports = {
     getFollowersCount,
     getFollowingsCount,
@@ -139,4 +177,5 @@ module.exports = {
     removeFollow,
     getFollowDocumentId,
     createFollowRelationship,
+    fetchFollowingList,
 }

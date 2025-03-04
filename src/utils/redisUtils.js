@@ -1,4 +1,3 @@
-const { email } = require('../config/appConfig');
 const { client } = require('../config/redisConfig');
 const { generatePreSignedUrl } = require('./aswS3Utils');
 
