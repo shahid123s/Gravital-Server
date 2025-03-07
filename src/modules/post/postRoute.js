@@ -5,13 +5,18 @@ const {
     addPost, 
     getAllPosts, 
     getUsersPost,
-    deletePost
+    deletePost,
+    getTrendingPosts,
+    sharePost,
+    getPost
 } = require('./postController');
 
-
+router.get('/',getPost)
 router.post('/create', dynamicUpload('post'), addPost);
 router.get('/get-post', getAllPosts);
 router.get('/user', getUsersPost);
 router.post('/delete', deletePost);
+router.get('/get-trending', getTrendingPosts)
+router.patch('/share', sharePost)
 
 module.exports = router;

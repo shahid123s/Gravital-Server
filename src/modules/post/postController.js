@@ -1,5 +1,6 @@
 const { HTTP_STATUS_CODE } = require("../../../constants/httpStatus");
 const { ResponseMessage } = require("../../../constants/responseMessage");
+const appConfig = require("../../config/appConfig");
 const { uploadFileToS3 } = require("../../utils/aswS3Utils");
 const { getCachedPostUrl, getCachedProfileImageUrl } = require("../../utils/redisUtils");
 const { getArchivedPostIds, deleteArchive } = require("../archive/archiveServices");
@@ -8,8 +9,8 @@ const { checkUserIsLikedThePost, getLikedCountofPost, removeLikedPosts } = requi
 const { removeReportedPosts } = require("../report/reportServices");
 const { checkUserIsSavedThePost, removeSavedPosts } = require("../savedPost/savedPostServices");
 const { existsUserByUsername } = require("../user/userService");
-const { createPost, fetchPosts, fetchActiveUserPosts, removePost } = require("./postServices");
-const { enrichPosts } = require("./utils/postUtils");
+const { createPost, fetchPosts, fetchActiveUserPosts, removePost, fetchTrendingPosts, addShareInteraction, doesPostExist, fetchPostById } = require("./postServices");
+const { enrichPosts, enrichPost } = require("./utils/postUtils");
 
 
 /**
@@ -190,9 +191,76 @@ try {
 }
 }
 
+
+const getTrendingPosts = async (req, res, next) =>{
+    const limit = 3;
+    const {userId} = req.user;
+    const {page} = req.query;
+
+    const response = await fetchTrendingPosts();
+
+    console.log(response, 'response');
+
+    const posts = await enrichPosts(response, userId);
+
+    res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+    .json({
+        success: true,
+        message: ResponseMessage.SUCCESS.OK,
+        posts,
+    })
+}
+
+const sharePost = async (req, res, next) => {
+    const {postId} = req.body;
+    const {userId} = req.user;
+     try {
+        await addShareInteraction(userId, postId);
+        return res.status(HTTP_STATUS_CODE.SUCCESS_OK).json({
+            success: true,
+            message: ResponseMessage.SUCCESS.OK,
+            data: `${appConfig.cors.origin}/post/${postId}`
+        });
+    } catch (error) {
+        next(error)
+    }
+}
+
+
+const getPost = async (req, res, next) => {
+    const {postId} = req.query;
+    const {userId} = req.user;
+    try {
+
+        let post = await doesPostExist(postId, true);
+        console.log(post)
+        if(!post) return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+            success: false,
+            message: ResponseMessage.ERROR.NOT_FOUND,
+        });
+        
+        post = await fetchPostById(postId);
+        // console.log(post, 'post look 1 ');
+        post =await enrichPost(post, userId)
+
+        console.log(post, 'post look');
+
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK).json({
+            success: true,
+            message: ResponseMessage.SUCCESS.OK,
+            post
+        })
+    } catch (error) {
+        next(error)
+    }
+}
+
 module.exports = {
     addPost,
     getAllPosts,
     getUsersPost,
     deletePost,
+    getTrendingPosts,
+    sharePost,
+    getPost,
 }

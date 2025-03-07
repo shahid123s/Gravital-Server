@@ -50,7 +50,7 @@ const fetchChatList = async (userId) => {
  */
 const existsConversation = async (type, userIds) => {
     try {
-            return await Chat.exists({participants: { $all : userIds}});
+            return await Chat.findOne({participants: { $all : userIds}});
     } catch (error) {
         throw new CustomError(
             error.message,

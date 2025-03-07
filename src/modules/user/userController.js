@@ -14,6 +14,7 @@ const {
     getUserByUsername,
     updateUserDetailsById,
     getUserInfo,
+    getUsersByUsername,
 } = require("./userService");
 const {
     getFollowersCount,
@@ -259,10 +260,34 @@ const userStatus = async (req, res, next) => {
 }
 
 
+const searchUsers = async(req, res, next) => {
+    const {username} = req.query;
+    const {userId} = req.user;
+    try {
+        if(!username) return res.status(HTTP_STATUS_CODE.BAD_REQUEST)
+        const usersList = await getUsersByUsername(username, userId);
+        const modifiedUsersList = await Promise.all(
+            usersList.map(async (user) => {
+                user.profileImage = await getCachedProfileImageUrl(user._id, user.profileImage);
+                return user;
+            })
+        );
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.OK,
+                usersList: modifiedUsersList,
+            });
+    } catch (error) {
+        next(error)
+    }
+}
+
 module.exports = {
     suggestUsers,
     userDetails,
     updateProfile,
     aboutProfile,
-    userStatus
+    userStatus,
+    searchUsers,
 }

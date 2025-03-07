@@ -1,6 +1,6 @@
-const { DATABASE_ERROR } = require('../../../constants/errorCodes');
+const { DATABASE_ERROR, ACCESS_DENIED } = require('../../../constants/errorCodes');
 const { _id } = require('../../../Constants/predefinedUserDetails');
-const { SERVER_ERROR } = require('../../../constants/httpStatus').HTTP_STATUS_CODE;
+const { SERVER_ERROR, BAD_REQUEST } = require('../../../constants/httpStatus').HTTP_STATUS_CODE;
 const CustomError = require('../../utils/customError');
 const Post = require('./postModel');
 
@@ -19,8 +19,8 @@ const Post = require('./postModel');
  */
 const doesPostExist = async (id, returnUserID = false) => {
     try {
-        if(returnUserID) {
-            return await Post.findOne({_id: id}).select('userId').lean();
+        if (returnUserID) {
+            return await Post.findOne({ _id: id }).select('userId').lean();
         }
         return !!(await Post.exists({ _id: id }));
     } catch (error) {
@@ -99,7 +99,6 @@ const createPost = async (userId, fileName, caption) => {
  */
 const fetchPosts = async (archivedPostIds, blockedIds, page, limit) => {
     try {
-        console.log(page,'')
         return await Post.find({
             isRestricted: false,
             _id: { $nin: archivedPostIds }, // Exclude archived posts
@@ -173,6 +172,177 @@ const removePost = async (postId) => {
     }
 }
 
+
+const fetchTrendingPosts = async (archivedPostIds, blockedIds, page, limit) => {
+    try {
+        return await Post.aggregate([
+            // Step 1: Lookup Likes Collection
+            {
+                $lookup: {
+                    from: "likes",
+                    localField: "_id",
+                    foreignField: "postId",
+                    as: "likes"
+                }
+            },
+            {
+                $addFields: {
+                    likesCount: { $size: "$likes" }
+                }
+            },
+
+            // Step 2: Lookup Comments Collection
+            {
+                $lookup: {
+                    from: "comments",
+                    localField: "_id",
+                    foreignField: "postId",
+                    as: "comments"
+                }
+            },
+            {
+                $addFields: {
+                    commentsCount: { $size: "$comments" }
+                }
+            },
+
+            // Step 3: Lookup Saves Collection
+            {
+                $lookup: {
+                    from: "saves",
+                    localField: "_id",
+                    foreignField: "postId",
+                    as: "saves"
+                }
+            },
+            {
+                $addFields: {
+                    savesCount: { $size: "$saves" }
+                }
+            },
+
+            // Step 4: Calculate Total Interaction Score
+            {
+                $addFields: {
+                    interactionScore: {
+                        $add: [
+                            { $multiply: ["$likesCount", 2] },
+                            { $multiply: ["$commentsCount", 3] },
+                            { $multiply: ["$savesCount", 1] },
+                            { $multiply: ["$shareCount", 5] }
+                        ]
+                    }
+                }
+            },
+
+            // Step 5: Lookup User Details and Restructure as userId Object
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userId",
+                    foreignField: "_id",
+                    as: "userDetails"
+                }
+            },
+            {
+                $unwind: "$userDetails"
+            },
+
+            // Step 6: Modify User Details to Follow Required Structure
+            {
+                $addFields: {
+                    userId: {
+                        _id: "$userDetails._id",
+                        username: "$userDetails.username",
+                        fullName: "$userDetails.fullName",
+                        profileImage: {
+                            $concat: [
+                                "https://gravital-profile-photo.s3.ap-south-1.amazonaws.com/",
+                                "$userDetails.profileImage"
+                            ]
+                        }
+                    }
+                }
+            },
+
+            // Step 7: Sort Posts by Interaction Score
+            { $sort: { interactionScore: -1 } },
+
+            // Step 8: Limit Results
+            { $limit: 10 },
+
+            // Step 9: Project Required Fields
+            {
+                $project: {
+                    _id: 1,
+                    fileName: 1,
+                    uploadedDate: 1,
+                    isRestricted: 1,
+                    isPostBoost: 1,
+                    caption: 1,
+                    createdAt: 1,
+                    interactionScore: 1,
+                    likesCount: 1,
+                    commentsCount: 1,
+                    savesCount: 1,
+                    shareCount: 1,
+                    userId: 1 // Includes structured user details
+                }
+            }
+        ]);
+
+
+    } catch (error) {
+        throw new CustomError(
+            error.message || "Failed to create post.",
+            SERVER_ERROR,
+            DATABASE_ERROR
+        );
+    }
+}
+
+const addShareInteraction = async (userId, postId) => {
+    try {
+        const post = await Post.findById(postId);
+        if (!post) throw new CustomError(
+            'Invalid Crendtials',
+            BAD_REQUEST,
+            ACCESS_DENIED,
+        )
+
+        return await Post.findByIdAndUpdate(
+            postId,
+            { $inc: { shareCount: 1 } },
+            { new: true }
+        );
+    } catch (error) {
+        throw new CustomError(
+            error.message || "Failed to create post.",
+            SERVER_ERROR,
+            DATABASE_ERRO
+        );
+    }
+}
+
+const fetchPostById = async (postId) => {
+    try {
+        return await Post
+            .findById(postId)
+            .populate({
+                path: 'userId',
+                select: 'username fullName profileImage'
+            })
+            .lean();
+    } catch (error) {
+        throw new CustomError(
+            error.message || "Failed to create post.",
+            SERVER_ERROR,
+            DATABASE_ERROR
+        );
+    }
+
+}
+
 module.exports = {
     doesPostExist,
     getPostCount,
@@ -180,4 +350,7 @@ module.exports = {
     fetchPosts,
     fetchActiveUserPosts,
     removePost,
+    fetchTrendingPosts,
+    addShareInteraction,
+    fetchPostById,
 }

@@ -26,6 +26,10 @@ const postSchema =  new mongoose.Schema({
     isPostBoost: {
         type: Boolean,
         default:  false,
+    },
+    shareCount: {
+        type: Number,
+        default: 0,
     }
     
 });

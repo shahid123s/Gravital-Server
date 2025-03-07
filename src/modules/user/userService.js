@@ -334,6 +334,20 @@ const getUserInfo = async (username) => {
     }
 }
 
+const getUsersByUsername = async (username, userId) => {
+    try {
+        return await User.find({ username: { $regex: username, $options: 'i' }, _id: { $ne: userId } })
+            .select('username fullName profileImage username')  
+            .limit(5);
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        )
+    }
+}
+
 module.exports = {
     existsUserByUsername,
     existsUserByEmail,
@@ -345,5 +359,6 @@ module.exports = {
     getUserById,
     getUserByUsername,
     updateUserDetailsById,
-    getUserInfo
+    getUserInfo,
+    getUsersByUsername
 }  

@@ -99,7 +99,7 @@ const getCachedProfileImageUrl = async (userId, profileImageKey) => {
 
     if (!profileImageUrl) {
         profileImageUrl = await generatePreSignedUrl(profileImageKey, false);
-        await client.setEx(redisKey, 3600, profileImageUrl); // Cache for 1 hour
+        await client.setEx(redisKey, 3400, profileImageUrl); // Cache for 1 hour
     }
     return profileImageUrl;
 }
@@ -111,7 +111,7 @@ const getCachedPostUrl = async (postId, fileName) => {
 
     if (!fileUrl) {
         fileUrl = await generatePreSignedUrl(fileName, true);
-        await client.setEx(redisKey, 3600, fileUrl); // Cache for 1 hour
+        await client.setEx(redisKey, 3500, fileUrl); // Cache for 1 hour
     }
     return fileUrl;
 }

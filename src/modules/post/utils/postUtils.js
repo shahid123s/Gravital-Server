@@ -1,4 +1,5 @@
 const { getCachedPostUrl, getCachedProfileImageUrl } = require("../../../utils/redisUtils");
+const { getCommentCount } = require("../../comments/commentServices");
 const { checkUserIsLikedThePost, getLikedCountofPost } = require("../../like/likeServices");
 const { checkUserIsSavedThePost } = require("../../savedPost/savedPostServices");
 
@@ -26,10 +27,11 @@ const enrichPosts = async (posts, userId, forArchive = false) => {
             if(forArchive) post.postId.postUrl = postUrl
             post.userId.profileImage = await getCachedProfileImageUrl(postOwnerId._id, postOwnerId.profileImage);
 
-            const [likedByUser, likedCount, isSavedByUser] = await Promise.all([
+            const [likedByUser, likedCount, isSavedByUser, commentCount] = await Promise.all([
                 checkUserIsLikedThePost(userId,postId),
                 getLikedCountofPost(postId),
                 checkUserIsSavedThePost(userId._id, postId),
+                getCommentCount(postId)
             ]);
 
             return {
@@ -38,11 +40,39 @@ const enrichPosts = async (posts, userId, forArchive = false) => {
                 likedByUser,
                 likedCount,
                 isSavedByUser,
+                commentCount
             };
         })
     );
 };
 
+const enrichPost = async (post, userId) => {
+    const postId = post._id;
+    const fileName = post.fileName;
+    const postOwnerId = post.userId;
+
+    const postUrl = await getCachedPostUrl(postId, fileName);
+
+    post.userId.profileImage = await getCachedProfileImageUrl(postOwnerId._id, postOwnerId.profileImage);
+
+    const [likedByUser, likedCount, isSavedByUser, commentCount] = await Promise.all([
+        checkUserIsLikedThePost(userId, postId),
+        getLikedCountofPost(postId),
+        checkUserIsSavedThePost(userId._id, postId),
+        getCommentCount(postId)
+    ]);
+
+    return {
+        ...post,
+        postUrl,
+        likedByUser,
+        likedCount,
+        isSavedByUser,
+        commentCount
+    };
+};
+
 module.exports = {
     enrichPosts,
+    enrichPost,
 }

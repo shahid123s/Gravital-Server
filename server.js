@@ -12,6 +12,7 @@ const { authenticateUser } = require('./src/middlewares/userAuthMiddleware');
 const errorHandler = require('./src/middlewares/error.middleware');
 const { port } = require('./src/config/appConfig').app;
 
+const commentRoute = require('./src/modules/comments/commentRoute');
 const userRoute = require('./src/modules/user/userRoutes');
 const authRoute = require('./src/modules/auth/authRoute');
 const adminRoute = require('./src/modules/admin/adminRoute');
@@ -50,6 +51,7 @@ app.use('/api/like', authenticateUser, likeRoute);
 app.use('/api/post', authenticateUser, postRoute);
 app.use('/api/save', authenticateUser, saveRoute);
 app.use('/api/chat', authenticateUser, chatRoute);
+app.use('/api/comment', authenticateUser, commentRoute);
 app.use('/api/archive', authenticateUser, archiveRoute);
 
 initializeSocket(server);
