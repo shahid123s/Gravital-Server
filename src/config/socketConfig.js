@@ -12,8 +12,18 @@ const initializeSocket = (server) => {
   });
 
   io.on('connection', (socket) => {
-    const { username: currentUser } = socket.handshake.auth
+    const { username: currentUser } = socket.handshake.auth;
     console.log('User connected:', socket.id, currentUser);
+
+    socket.on("createOnlineUser", ({username}) => {
+      console.log(`Online user: ${username}`);
+      socket.join(username);
+    });
+
+    socket.on('sendNotification', ({username, notification}) => {
+      console.log(`Notification sent to ${username}:`, notification);
+      io.to(username).emit('receiveNotification', notification);
+    })
 
     socket.on('joinRoom', (roomId) => {
       socket.join(roomId);
@@ -37,4 +47,12 @@ const initializeSocket = (server) => {
   });
 };
 
-module.exports = { initializeSocket, io };
+
+const getIo = () => {
+  if (!io) {
+    throw new Error("Socket.io not initialized");
+  }
+  return io;
+};
+
+module.exports = { initializeSocket, getIo };

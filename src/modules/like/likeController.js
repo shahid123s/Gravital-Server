@@ -1,5 +1,6 @@
 const { HTTP_STATUS_CODE } = require("../../../constants/httpStatus");
 const { ResponseMessage } = require("../../../constants/responseMessage");
+const { getIo } = require("../../config/socketConfig");
 const { doesPostExist } = require("../post/postServices");
 const { doesUserExist } = require("../user/userService");
 const { isPostLikedByUser, deleteLikeById, likePost } = require("./likeServices");
@@ -41,6 +42,9 @@ const toggleLike = async(req, res, next) => {
             });
         };
         await likePost(userId, postId);
+        const io = getIo()
+        const notification = {message: 'Notification comes'}
+        io.to('shahid1').emit('receiveNotification', notification);
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
         .json({
             success: true,
