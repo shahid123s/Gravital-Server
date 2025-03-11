@@ -39,6 +39,10 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(corsConfig);
 
+app.get('/', (req, res) => {
+    res.send('Hello World!');
+});
+
 app.use('/api/auth', authRoute);
 app.use('/admin/api', adminRoute);
 
