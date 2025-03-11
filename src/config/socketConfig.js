@@ -1,11 +1,12 @@
 const { Server } = require("socket.io");
+const appConfig = require("./appConfig");
 
 let io;
 
 const initializeSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: "*", // Update with your frontend URL if needed
+      origin: appConfig.cors.origin, // Update with your frontend URL if needed
       credentials: true,
       methods: ['GET', 'POST'],
     },
