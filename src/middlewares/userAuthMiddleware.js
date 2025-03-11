@@ -1,4 +1,4 @@
-const { HTTP_STATUS_CODE } = require('../../constants/httpStatus');
+const { HTTP_STATUS_CODE } = require('../../constants/httpStatus.js');
 const { decodeAccessToken } = require('../utils/jwtUtils');
 const { ResponseMessage } = require('../../constants/responseMessage');
 const CustomError = require('../utils/customError');
