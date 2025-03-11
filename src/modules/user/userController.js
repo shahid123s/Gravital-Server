@@ -6,7 +6,7 @@ const { convertDateToMMYY } = require('../../utils/dateUtils');
 const { getPostCount } = require('../post/postServices')
 const { getArchivePostCount } = require('../archive/archiveServices');
 const { checkUserIsBlocked } = require("../block/blockServices");
-const PreDefinedUserDetails = require("../../../Constants/predefinedUserDetails");
+const PreDefinedUserDetails = require("../../../constants/predefinedUserDetails");
 const { uploadFileToS3 } = require("../../utils/aswS3Utils");
 const {
     getSuggestedUsers,

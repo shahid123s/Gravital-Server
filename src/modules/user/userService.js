@@ -4,7 +4,7 @@ const { SERVER_ERROR,BAD_REQUEST } = require('../../../constants/httpStatus').HT
 const CustomError = require('../../utils/customError');
 const { email } = require('../../config/appConfig');
 const { toObjectId } = require('../../utils/dbUtils');
-const { username } = require('../../../Constants/predefinedUserDetails');
+const { username } = require('../../../constants/predefinedUserDetails');
 const mongoose = require('mongoose')
  
 /**

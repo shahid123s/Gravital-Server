@@ -1,5 +1,5 @@
 const { DATABASE_ERROR, ACCESS_DENIED } = require('../../../constants/errorCodes');
-const { _id } = require('../../../Constants/predefinedUserDetails');
+const { _id } = require('../../../constants/predefinedUserDetails');
 const { SERVER_ERROR, BAD_REQUEST } = require('../../../constants/httpStatus').HTTP_STATUS_CODE;
 const CustomError = require('../../utils/customError');
 const Post = require('./postModel');
