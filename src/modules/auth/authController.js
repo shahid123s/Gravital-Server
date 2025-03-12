@@ -189,6 +189,15 @@ const register = async (req, res, next) => {
     try {
         // Taskes user data form the redis stored on OTP sending .
         const userData = await getData(email);
+        console.log(userData);
+        if(userData === null) {
+            return res
+                .status(HTTP_STATUS_CODE.NOT_FOUND)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.AUTHENTICATION.OTP_EXPIRED,
+                });
+        }
 
         // Combine existing data and the personal informations 
         const userDetails = { ...userData, fullName, phoneNumber, dob };
