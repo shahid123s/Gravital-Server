@@ -4,7 +4,7 @@ const crypto = require('crypto');
  * @returns {string} - The generated OTP
  */
 const generateOTP = () => {
-    return crypto.randomInt(100000, 999999)
+    return String(crypto.randomInt(100000, 999999))
 }
 
 // Exporting the function to use other module
