@@ -39,7 +39,7 @@ const suggestUsers = async (req, res, next) => {
     const { userId } = req.user;
     try {
         const suggestion = await getSuggestedUsers(userId);
-
+        console.log(suggestion, userId, 'look now new here ')
         const usersList = await Promise.all(
             suggestion.map(async (user) => {
                 user.profileImage = await getCachedProfileImageUrl(
@@ -263,6 +263,7 @@ const userStatus = async (req, res, next) => {
 const searchUsers = async(req, res, next) => {
     const {username} = req.query;
     const {userId} = req.user;
+
     try {
         if(!username) return res.status(HTTP_STATUS_CODE.BAD_REQUEST)
         const usersList = await getUsersByUsername(username, userId);
