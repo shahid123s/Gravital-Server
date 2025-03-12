@@ -23,7 +23,6 @@ const storeData = async (email, value, expiration = 1000) => {
 // Store OTP with expiration in Redis
 const storeOtp = async (email, otp) => {
     try {
-        console.log(email,otp,  'on store otp')
         await client.setEx(`otp:${email}`, 300, otp); // Expiry set to 5 minutes
         console.log('OTP Stored Successfully');
         return "OTP Stored Successfully";

@@ -99,9 +99,7 @@ const sentOTP = async (req, res, next) => {
         }
 
         const OTP = generateOTP();
-        console.log(email, OTP)
         await storeOtp(email, OTP);
-        console.log('is it here')
         sendEmailVerification(email, OTP);
 
         res
