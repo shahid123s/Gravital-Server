@@ -2,6 +2,7 @@ const { HTTP_STATUS_CODE } = require('../../../constants/httpStatus')
 const { ResponseMessage } = require('../../../constants/responseMessage');
 const { decodeRefreshToken } = require('../../utils/jwtUtils');
 const { storeRefreshToken, getRefreshToken } = require('../../utils/redisUtils');
+const {v4 : uuid} = require('uuid')
 const {
     existsUserByUsername,
     existsUserByEmail,
@@ -23,6 +24,7 @@ const {
     generateAccessToken,
     generateRefreshToken
 } = require('./authService');
+
 
 
 /**
@@ -189,7 +191,6 @@ const register = async (req, res, next) => {
     try {
         // Taskes user data form the redis stored on OTP sending .
         const userData = await getData(email);
-        console.log(userData);
         if(userData === null) {
             return res
                 .status(HTTP_STATUS_CODE.NOT_FOUND)
@@ -200,7 +201,7 @@ const register = async (req, res, next) => {
         }
 
         // Combine existing data and the personal informations 
-        const userDetails = { ...userData, fullName, phoneNumber, dob };
+        const userDetails = { ...userData, fullName, phoneNumber, dob, userID:uuid() };
 
         // create the user in the database
         await createUser(userDetails);
