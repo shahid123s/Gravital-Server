@@ -99,6 +99,7 @@ const sentOTP = async (req, res, next) => {
         }
 
         const OTP = generateOTP();
+        console.log(OTP)
         await storeOtp(email, OTP);
         sendEmailVerification(email, OTP);
 
@@ -307,11 +308,11 @@ const userLogout = async (req, res, next) => {
 
         // Respond with a success message
         res
-        .status(HTTP_STATUS_CODE.SUCCESS_OK)
-        .json({
-            success: true,
-            message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGOUT,
-        });
+            .status(HTTP_STATUS_CODE.SUCCESS_OK)
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGOUT,
+            });
     } catch (error) {
         next(error); // Pass error to the next middleware for handling
     }
@@ -332,17 +333,17 @@ const userLogout = async (req, res, next) => {
  * @throws {Error} - If any error occurs during the OTP sending process, it's passed to the next error-handling middleware.
  */
 const sentOTPOnForgetPassword = async (req, res, next) => {
-    const {email}  = req.body;
-    
+    const { email } = req.body;
+
     try {
         const isExists = await existsUserByEmail(email);
-        if(!isExists) {
+        if (!isExists) {
             return res
-            .status(HTTP_STATUS_CODE.NOT_FOUND)
-            .json({
-                success: false,
-                message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS
-            })
+                .status(HTTP_STATUS_CODE.NOT_FOUND)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS
+                })
         }
 
         const OTP = generateOTP();
@@ -354,12 +355,12 @@ const sentOTPOnForgetPassword = async (req, res, next) => {
                 message: ResponseMessage.ERROR.AUTHENTICATION.EMAIL_SEND_FAILED
             });
         }
-        
+
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
-        .json({
-            success: true,
-            message: ResponseMessage.SUCCESS.AUTHENTICATION.OTP_SEND,
-        });
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.AUTHENTICATION.OTP_SEND,
+            });
     } catch (error) {
         next(error)
     }
@@ -379,7 +380,7 @@ const sentOTPOnForgetPassword = async (req, res, next) => {
  * @throws {CustomError} If there's an issue during the database operation.
  */
 const resetPassword = async (req, res, next) => {
-    const {password, email} = req.body;
+    const { password, email } = req.body;
 
     try {
         if (!password || !email) {
@@ -389,7 +390,7 @@ const resetPassword = async (req, res, next) => {
             });
         }
 
-        const securedPassword  = await hashPassword(password);
+        const securedPassword = await hashPassword(password);
 
         const updatedUser = await updateUserPassword(email, securedPassword);
 
@@ -421,29 +422,29 @@ const resetPassword = async (req, res, next) => {
  * @throws {Error} If an error occurs during the login process.
  */
 const adminLogin = async (req, res, next) => {
-    const {email, password} = req.body;
-    
+    const { email, password } = req.body;
+
     try {
 
-        if(!email || !password) {
+        if (!email || !password) {
             return res
-            .status(HTTP_STATUS_CODE.BAD_REQUEST)
-            .json({
-                success: false,
-                message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS,
-            })
+                .status(HTTP_STATUS_CODE.BAD_REQUEST)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS,
+                })
         }
 
         const user = await getUserDetailsByEmailWithPassword(email);
         const isMatch = await comparePassword(password, user.password);
-        
-        if(!user || user.role !== 'admin' || !isMatch) {
+
+        if (!user || user.role !== 'admin' || !isMatch) {
             return res
-            .status(HTTP_STATUS_CODE.BAD_REQUEST)
-            .json({
-                success: false,
-                message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS,
-            })
+                .status(HTTP_STATUS_CODE.BAD_REQUEST)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.AUTHENTICATION.INVALID_CREDENTIALS,
+                })
         }
         const accessToken = await generateAccessToken(user._id, user.role);
         const refreshToken = await generateRefreshToken(user._id, user.role);
@@ -452,17 +453,17 @@ const adminLogin = async (req, res, next) => {
 
         res.cookie('adminToken', refreshToken, {
             httpOnly: true,
-            secure: false,  
+            secure: false,
             sameSite: 'Lax',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
-        .json({
-            success: true,
-            message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGIN,
-            accessToken,
-        })
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGIN,
+                accessToken,
+            })
 
     } catch (error) {
         next(error)
@@ -507,40 +508,40 @@ const adminLogout = async (req, res, next) => {
 
 
 const refreshAccessToken = async (req, res, next) => {
-    const {refreshToken} = req.cookies;
-    if(!refreshToken ){
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
         return res
-        .status(HTTP_STATUS_CODE.FORBIDDEN)
-        .json({
-            success:false,
-            message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
-        })
+            .status(HTTP_STATUS_CODE.FORBIDDEN)
+            .json({
+                success: false,
+                message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
+            })
     }
     try {
-        const decode  = await decodeRefreshToken(refreshToken);
-        const user  = await getUserById(decode.userId, true);
+        const decode = await decodeRefreshToken(refreshToken);
+        const user = await getUserById(decode.userId, true);
         const currentToken = await getRefreshToken(user.email)
-        
-        if(!user || refreshToken !== currentToken){
+
+        if (!user || refreshToken !== currentToken) {
             return res
-        .status(HTTP_STATUS_CODE.FORBIDDEN)
-        .json({
-            success:false,
-            message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
-        })
+                .status(HTTP_STATUS_CODE.FORBIDDEN)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.AUTHORIZATION.INVALID_TOKEN,
+                })
         }
 
         const accessToken = await generateAccessToken(user._id, user.role);
 
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
-        .json({
-            accessToken, 
-            massage: ResponseMessage.SUCCESS.OK
-        });
+            .json({
+                accessToken,
+                massage: ResponseMessage.SUCCESS.OK
+            });
     } catch (error) {
         next(error)
     }
-    }
+}
 
 module.exports = {
     sentOTP,
