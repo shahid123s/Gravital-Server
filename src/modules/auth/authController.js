@@ -210,7 +210,7 @@ const register = async (req, res, next) => {
             .status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({
                 success: true,
-                message: ResponseMessage.SUCCESS.REGISTRATION.SUCCESS,
+                message: ResponseMessage.SUCCESS.OK,
             });
 
     } catch (error) {
