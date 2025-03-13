@@ -3,6 +3,7 @@ const http = require('http');
 const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 const dotenv = require('dotenv');
+const rateLimit = require('express-rate-limit');
 dotenv.config();
 
 const { client } = require('./src/config/redisConfig');
@@ -31,6 +32,17 @@ const { initializeSocket } = require('./src/config/socketConfig');
 // const mediasoupService = require('./src/modules/liveStream/services/streamService');
 // const mediasoupSocketHandler = require('./src/modules/liveStream/services/socketIntegrationService');
 
+//DoS Attack prevention
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers,
+  message: "Too many requests from this IP, please try again after 15 minutes",
+});
+
+
 const app = express();
 const server = http.createServer(app);
 
@@ -38,10 +50,8 @@ const server = http.createServer(app);
 app.use(cookieParser());
 app.use(express.json());
 app.use(corsConfig);
+app.use(apiLimiter);
 
-app.get('/', (req, res) => {
-    res.send('Hello World!');
-});
 
 app.use('/api/auth', authRoute);
 app.use('/admin/api', adminRoute);
