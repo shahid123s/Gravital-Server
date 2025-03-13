@@ -10,6 +10,7 @@ const {
     adminLogin,
     adminLogout,
     refreshAccessToken,
+    resetPassword,
 } = require('./authController')
 
 
@@ -20,7 +21,7 @@ router.post('/user/login', userLogin);
 router.post('/user/logout',userLogout);
 router.post('/user/refresh-token' , refreshAccessToken )
 router.post('/user/sent-otp/forget-password',sentOTPOnForgetPassword );
-router.post('/user/reset-password', );
+router.post('/user/reset-password', resetPassword);
 router.post('/admin/login', adminLogin);
 router.post('/admin/logout', adminLogout);
 
