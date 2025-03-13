@@ -391,6 +391,8 @@ const sentOTPOnForgetPassword = async (req, res, next) => {
 const resetPassword = async (req, res, next) => {
     const { password, email } = req.body;
 
+    console.log(password, email, 'at first stage')
+
     try {
         if (!password || !email) {
             return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
@@ -400,9 +402,10 @@ const resetPassword = async (req, res, next) => {
         }
 
         const securedPassword = await hashPassword(password);
-
+        console.log(securedPassword, 'secured password at second stage')
         const updatedUser = await updateUserPassword(email, securedPassword);
 
+        console.log(updatedUser, 'updated user at third stage')
         // Check if the user exists
         if (!updatedUser) {
             return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
@@ -410,6 +413,7 @@ const resetPassword = async (req, res, next) => {
                 message: ResponseMessage.ERROR.NOT_FOUND,
             });
         }
+        console.log('at last ')
 
     } catch (error) {
         next(error)
