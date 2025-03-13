@@ -402,10 +402,8 @@ const resetPassword = async (req, res, next) => {
         }
 
         const securedPassword = await hashPassword(password);
-        console.log(securedPassword, 'secured password at second stage')
         const updatedUser = await updateUserPassword(email, securedPassword);
 
-        console.log(updatedUser, 'updated user at third stage')
         // Check if the user exists
         if (!updatedUser) {
             return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
@@ -413,8 +411,10 @@ const resetPassword = async (req, res, next) => {
                 message: ResponseMessage.ERROR.NOT_FOUND,
             });
         }
-        console.log('at last ')
-
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK).json({
+            success: true,
+            message: ResponseMessage.SUCCESS.OK,
+        })
     } catch (error) {
         next(error)
     }
