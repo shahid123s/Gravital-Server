@@ -390,9 +390,6 @@ const sentOTPOnForgetPassword = async (req, res, next) => {
  */
 const resetPassword = async (req, res, next) => {
     const { password, email } = req.body;
-
-    console.log(password, email, 'at first stage')
-
     try {
         if (!password || !email) {
             return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({

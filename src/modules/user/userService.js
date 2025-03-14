@@ -348,6 +348,21 @@ const getUsersByUsername = async (username, userId) => {
     }
 }
 
+const getUserEmailandPasswordById = async (userId) => {
+    try {
+        return await User
+        .findById(userId)
+        .select('email password');
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR,
+        )
+    }
+
+}
+
 module.exports = {
     existsUserByUsername,
     existsUserByEmail,
@@ -360,5 +375,6 @@ module.exports = {
     getUserByUsername,
     updateUserDetailsById,
     getUserInfo,
-    getUsersByUsername
+    getUsersByUsername,
+    getUserEmailandPasswordById,
 }  

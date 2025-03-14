@@ -15,6 +15,8 @@ const {
     updateUserDetailsById,
     getUserInfo,
     getUsersByUsername,
+    getUserEmailById,
+    updateUserPassword,
 } = require("./userService");
 const {
     getFollowersCount,
@@ -22,6 +24,7 @@ const {
     checkIsFollowed
 } = require('../follows/followServices');
 const { checkIsRestricted } = require("../restriction/restrictionServices");
+const { comparePassword } = require("../auth/authService");
 
 /**
  * Controller to get a list of suggested users for the logged-in user.
@@ -260,12 +263,12 @@ const userStatus = async (req, res, next) => {
 }
 
 
-const searchUsers = async(req, res, next) => {
-    const {username} = req.query;
-    const {userId} = req.user;
+const searchUsers = async (req, res, next) => {
+    const { username } = req.query;
+    const { userId } = req.user;
 
     try {
-        if(!username) return res.status(HTTP_STATUS_CODE.BAD_REQUEST)
+        if (!username) return res.status(HTTP_STATUS_CODE.BAD_REQUEST)
         const usersList = await getUsersByUsername(username, userId);
         const modifiedUsersList = await Promise.all(
             usersList.map(async (user) => {
@@ -284,6 +287,43 @@ const searchUsers = async(req, res, next) => {
     }
 }
 
+const changePassword = async (req, res, next) => {
+    const { userId } = req.user;
+    const { currentPassword, newPassword } = req.body;
+
+    try {
+        const user = await getUserEmailandPasswordById(userId);
+        console.log(user)
+
+        if (!user) {
+            return res.status(HTTP_STATUS_CODE.NOT_FOUND)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.NOT_FOUND,
+                });
+        }
+
+        const isMatch = await comparePassword(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(HTTP_STATUS_CODE.UNAUTHORIZED)
+                .json({
+                    success: false,
+                    message: ResponseMessage.ERROR.INVALID_PASSWORD,
+                });
+        }
+
+        await updateUserPassword(user.email, newPassword);
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.UPDATED,
+            });
+
+    } catch (error) {
+        next(error)
+    }
+}
+
 module.exports = {
     suggestUsers,
     userDetails,
@@ -291,4 +331,6 @@ module.exports = {
     aboutProfile,
     userStatus,
     searchUsers,
+    changePassword,
+    
 }
