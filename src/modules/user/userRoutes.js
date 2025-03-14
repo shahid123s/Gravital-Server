@@ -7,7 +7,8 @@ const {
     updateProfile,
     aboutProfile,
     userStatus,
-    searchUsers
+    searchUsers,
+    changePassword
 } = require('./userController');
 
 
@@ -17,5 +18,5 @@ router.patch('/update-profile', dynamicUpload('profileImage'),updateProfile)
 router.get('/about-profile', aboutProfile)
 router.get('/status', userStatus );
 router.get('/search',searchUsers );
-router.patch('/change-password',)
+router.patch('/change-password', changePassword)
 module.exports = router;
