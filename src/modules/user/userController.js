@@ -24,7 +24,7 @@ const {
     checkIsFollowed
 } = require('../follows/followServices');
 const { checkIsRestricted } = require("../restriction/restrictionServices");
-const { comparePassword } = require("../auth/authService");
+const { comparePassword, hashPassword } = require("../auth/authService");
 
 /**
  * Controller to get a list of suggested users for the logged-in user.
@@ -293,8 +293,6 @@ const changePassword = async (req, res, next) => {
 
     try {
         const user = await getUserEmailandPasswordById(userId);
-        console.log(user)
-
         if (!user) {
             return res.status(HTTP_STATUS_CODE.NOT_FOUND)
                 .json({
@@ -312,7 +310,9 @@ const changePassword = async (req, res, next) => {
                 });
         }
 
-        await updateUserPassword(user.email, newPassword);
+        const hashedPassword = await hashPassword(newPassword)
+
+        await updateUserPassword(user.email, hashedPassword);
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({
                 success: true,
