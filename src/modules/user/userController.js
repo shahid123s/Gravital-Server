@@ -15,8 +15,8 @@ const {
     updateUserDetailsById,
     getUserInfo,
     getUsersByUsername,
-    getUserEmailById,
     updateUserPassword,
+    getUserEmailandPasswordById,
 } = require("./userService");
 const {
     getFollowersCount,
