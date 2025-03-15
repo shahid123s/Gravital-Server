@@ -8,7 +8,8 @@ const {
     deletePost,
     getTrendingPosts,
     sharePost,
-    getPost
+    getPost,
+    getLikedPost
 } = require('./postController');
 
 router.get('/',getPost)
@@ -18,5 +19,6 @@ router.get('/user', getUsersPost);
 router.post('/delete', deletePost);
 router.get('/get-trending', getTrendingPosts)
 router.patch('/share', sharePost)
+router.get('/liked-posts', getLikedPost)
 
 module.exports = router;

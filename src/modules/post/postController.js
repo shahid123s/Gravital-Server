@@ -2,12 +2,11 @@ const { HTTP_STATUS_CODE } = require("../../../constants/httpStatus");
 const { ResponseMessage } = require("../../../constants/responseMessage");
 const appConfig = require("../../config/appConfig");
 const { uploadFileToS3 } = require("../../utils/aswS3Utils");
-const { getCachedPostUrl, getCachedProfileImageUrl } = require("../../utils/redisUtils");
 const { getArchivedPostIds, deleteArchive } = require("../archive/archiveServices");
 const { getBlockedUsersByCurrentUser, getUsersWhoBlockedCurrentUser, checkUserIsBlocked } = require("../block/blockServices");
-const { checkUserIsLikedThePost, getLikedCountofPost, removeLikedPosts } = require("../like/likeServices");
+const { removeLikedPosts, fetchLikedPostByUser } = require("../like/likeServices");
 const { removeReportedPosts } = require("../report/reportServices");
-const { checkUserIsSavedThePost, removeSavedPosts } = require("../savedPost/savedPostServices");
+const { removeSavedPosts } = require("../savedPost/savedPostServices");
 const { existsUserByUsername } = require("../user/userService");
 const { createPost, fetchPosts, fetchActiveUserPosts, removePost, fetchTrendingPosts, addShareInteraction, doesPostExist, fetchPostById } = require("./postServices");
 const { enrichPosts, enrichPost } = require("./utils/postUtils");
@@ -255,6 +254,23 @@ const getPost = async (req, res, next) => {
     }
 }
 
+const getLikedPost = async (req, res, next) => {
+    const {userId} = req.user;
+    try {
+        const likedPosts = await fetchLikedPostByUser(userId);
+        const posts = await enrichPosts(likedPosts, userId, true);
+        res.status(HTTP_STATUS_CODE.SUCCESS_OK)
+            .json({
+                success: true,
+                message: ResponseMessage.SUCCESS.OK,
+                posts,
+            });
+
+    } catch (error) {
+        next(error)
+    }
+}
+
 module.exports = {
     addPost,
     getAllPosts,
@@ -263,4 +279,5 @@ module.exports = {
     getTrendingPosts,
     sharePost,
     getPost,
+    getLikedPost,
 }

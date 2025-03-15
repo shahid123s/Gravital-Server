@@ -135,6 +135,28 @@ const removeLikedPosts = async (postId) =>{
         );
     }
 }
+
+const fetchLikedPostByUser = async (userId) => {
+    try {
+        return await Like
+        .find({userId})
+        .populate({
+            path: 'postId',
+            populate: {
+                path: 'userId',
+                select: 'username profileImage fullName',
+            },
+        }).lean();
+    } catch (error) {
+        throw new CustomError(
+            error.message,
+            SERVER_ERROR,
+            DATABASE_ERROR
+        );
+    }
+}
+
+
 module.exports = {
     checkUserIsLikedThePost,
     getLikedCountofPost,
@@ -142,4 +164,5 @@ module.exports = {
     deleteLikeById,
     likePost,
     removeLikedPosts,
+    fetchLikedPostByUser,
 }
