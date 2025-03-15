@@ -506,7 +506,7 @@ const adminLogout = async (req, res, next) => {
 
         // Respond with a success message
         res
-            .status(HTPP_STATUS_CODE.SUCCESS_OK)
+            .status(HTTP_STATUS_CODE.SUCCESS_OK)
             .json({
                 success: true,
                 message: ResponseMessage.SUCCESS.AUTHENTICATION.LOGOUT,
