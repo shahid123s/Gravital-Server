@@ -1,7 +1,7 @@
 const { HTTP_STATUS_CODE } = require("../../../../constants/httpStatus");
 const { ResponseMessage } = require("../../../../constants/responseMessage");
 const { userActionButton } = require("../../../utils/actionButtonUtils");
-const { getCachedProfileImageUrl } = require("../../../utils/redisUtils");
+const { getCachedProfileImageUrl, deleteToken } = require("../../../utils/redisUtils");
 const { getUserById } = require("../../user/userService");
 const { fetchAllUser, countUsersList, unbanUser, banUser, unblockUser, blockUser } = require("../services/adminUserServices");
 
@@ -175,6 +175,7 @@ const toggleBlock = async (req, res, next) => {
             await unblockUser(userId);
         } else {
             await blockUser(userId);
+            await deleteToken(user.email)
         }
 
         res.status(HTTP_STATUS_CODE.SUCCESS_OK)

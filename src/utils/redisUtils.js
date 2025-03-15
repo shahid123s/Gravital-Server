@@ -56,7 +56,7 @@ const getRefreshToken = async (email) => {
 // Remove token from Redis
 const deleteToken = async (email) => {
     try {
-        await client.del(email);
+        await client.del(`token${email}`);
         return 'Deleted Successfully'
     } catch (error) {
         console.log(error)
