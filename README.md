@@ -32,6 +32,12 @@ The server also includes a **Mediasoup-based WebRTC live streaming** module (cur
 
 ---
 
+## 💡 Motivation
+
+Built to explore scalable backend architecture, caching strategies, and real-world system design challenges in social media platforms.
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
