@@ -1,620 +1,411 @@
-# 🌌 Gravital Server
+# Gravital Backend
 
-> A feature-rich, production-grade **Node.js REST API** and real-time backend for a social media platform — built with Express.js, MongoDB, Redis, Socket.IO, and AWS S3.
+Backend service for Gravital, a social media system that supports authentication, feed delivery, post interactions, messaging, moderation workflows, media storage, and real-time events.
 
----
-
-## 📖 Table of Contents
-
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Features](#features)
-- [API Reference](#api-reference)
-- [Data Models](#data-models)
-- [Authentication Flow](#authentication-flow)
-- [Real-time Features (Socket.IO)](#real-time-features-socketio)
-- [File Uploads (AWS S3)](#file-uploads-aws-s3)
-- [Caching Strategy (Redis)](#caching-strategy-redis)
-- [Security](#security)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [Scripts](#scripts)
-
----
+This repository is used as the backend submodule inside the `Gravital-system` monorepo.
 
 ## Overview
 
-**Gravital** is a full-featured social media backend server. It powers a complete social networking experience including user authentication (with OTP verification), post creation & management, real-time chat, notifications, follow/unfollow mechanics, likes, comments, content reporting, post archiving, and user/post administration — all served over a secure, rate-limited REST API.
+Gravital is designed as a full-stack social platform with a backend-first focus. The API handles identity, content, interactions, moderation, and real-time communication while keeping media and temporary state outside the database.
 
-The server also includes a **Mediasoup-based WebRTC live streaming** module (currently commented out but fully implemented) for real-time video/audio broadcasts.
+The backend is structured to show system design thinking rather than only feature implementation:
 
----
-
-## 💡 Motivation
-
-Built to explore scalable backend architecture, caching strategies, and real-world system design challenges in social media platforms.
-
----
+- Express handles routing and middleware orchestration.
+- Controllers handle HTTP request/response boundaries.
+- Services own business operations and database access.
+- MongoDB stores durable domain data.
+- Redis stores short-lived state such as OTPs, refresh tokens, and cached media URLs.
+- AWS S3 stores uploaded profile and post media.
+- Socket.IO handles chat, online presence, and notification events.
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Runtime** | Node.js (CommonJS) |
-| **Framework** | Express.js v4 |
-| **Database** | MongoDB via Mongoose ODM |
-| **Cache / Session** | Redis v4 |
-| **Real-time** | Socket.IO v4 |
-| **Authentication** | JSON Web Tokens (JWT) — Access + Refresh Token pattern |
-| **Password Hashing** | bcrypt / bcryptjs |
-| **OTP** | otp-generator |
-| **Email** | Nodemailer (Gmail SMTP) |
-| **File Storage** | AWS S3 (via AWS SDK v3) |
-| **File Upload Middleware** | Multer (in-memory storage) |
-| **Rate Limiting** | express-rate-limit |
-| **Live Streaming** | Mediasoup v3 (WebRTC SFU — implemented, inactive) |
-| **ID Generation** | uuid v10 |
-| **Dev Tool** | Nodemon |
+| Area | Technology |
+| --- | --- |
+| Runtime | Node.js, CommonJS |
+| Framework | Express.js |
+| Database | MongoDB with Mongoose |
+| Cache / Temporary State | Redis |
+| Authentication | JWT access token + JWT refresh token |
+| Token Storage | HttpOnly cookies for refresh token, Redis for server-side validation |
+| Password Hashing | bcrypt / bcryptjs |
+| Realtime | Socket.IO |
+| Media Storage | AWS S3 |
+| Upload Middleware | Multer memory storage |
+| Email / OTP | Nodemailer, otp-generator |
+| Rate Limiting | express-rate-limit |
+| WebRTC Experiment | Mediasoup module |
 
----
+## System Architecture
 
-## Architecture
-
-The server follows a **modular MVC-like architecture**, where each feature domain (auth, user, post, chat, etc.) is encapsulated inside its own module folder under `src/modules/`. Cross-cutting concerns like configuration, middleware, and utilities live in `src/config/`, `src/middlewares/`, and `src/utils/` respectively. Shared constants (HTTP codes, error codes, roles, messages) reside in the top-level `Constants/` directory.
-
-```
-Client (HTTP / WebSocket)
-        │
-        ▼
-   [ Express App ]
-        │
-   ┌────┴─────────────────────────────────┐
-   │  Rate Limiter → CORS → Cookie Parser │
-   │    JSON Body Parser → Auth Middleware │
-   └────┬─────────────────────────────────┘
-        │
-   ┌────▼──────────────────────┐
-   │       Route Layer         │ ← Module Routers
-   └────┬──────────────────────┘
-        │
-   ┌────▼──────────────────────┐
-   │    Controller Layer       │ ← Business Logic
-   └────┬──────────────────────┘
-        │
-   ┌────▼──────────────────────┐
-   │    Service Layer          │ ← DB Queries, 3rd-party
-   └────┬──────────────────────┘
-        │
-   ┌────┴──────────┬───────────┐
-   │               │           │
- MongoDB         Redis       AWS S3
+```text
+Client
+  |
+  | HTTP / WebSocket
+  v
+Express API
+  |
+  |-- Middleware
+  |   |-- CORS
+  |   |-- Cookie parser
+  |   |-- JSON parser
+  |   |-- Rate limiter
+  |   |-- JWT authentication
+  |
+  |-- Module routes
+  |-- Controllers
+  |-- Services
+  |-- Models
+  |
+  |-- MongoDB   durable application data
+  |-- Redis     OTPs, refresh tokens, cached S3 URLs
+  |-- AWS S3    profile images and post media
+  |-- Socket.IO realtime delivery
 ```
 
-**Startup Sequence:**
-1. Redis client connects explicitly
-2. Only after Redis is ready, the HTTP server starts listening
-3. MongoDB connects asynchronously after server start
-4. Socket.IO is initialized on the same HTTP server
+The service starts Redis before accepting traffic because OTP verification, token refresh, and cached media URL flows depend on Redis. MongoDB is initialized during server startup, and Socket.IO is attached to the same HTTP server.
 
----
+## Request Flow
 
-## Project Structure
+Protected user APIs follow a consistent controller-service-database flow:
 
+```text
+Client request
+  |
+  | Authorization: Bearer <accessToken>
+  v
+Route
+  |
+  v
+authenticateUser middleware
+  |
+  | verifies JWT signature
+  | verifies role = user
+  | attaches decoded user data to req.user
+  v
+Controller
+  |
+  | reads req.body / req.query / req.params
+  | performs request-level checks
+  | coordinates services
+  v
+Service
+  |
+  | executes MongoDB queries
+  | calls Redis/S3 utilities when required
+  | throws CustomError for expected failures
+  v
+Database / Cache / Storage
+  |
+  v
+JSON response
 ```
-Gravital-Server/
-├── server.js                   # App entry point — Express setup, route mounting, server boot
-├── package.json
-│
-├── Constants/                  # Shared application constants
-│   ├── errorCodes.js           # App-specific error codes
-│   ├── httpStatus.js           # HTTP status code map
-│   ├── predefinedUserDetails.js# Default user profile shape
-│   ├── responseMessage.js      # All success/error response messages
-│   └── roles.js                # USER / ADMIN role constants
-│
+
+### Feed Request Flow
+
+```text
+GET /api/post/get-post?page=1
+  |
+  v
+authenticateUser
+  |
+  v
+postController.getAllPosts
+  |
+  |-- archiveService.getArchivedPostIds()
+  |-- blockService.getUsersWhoBlockedCurrentUser()
+  |-- blockService.getBlockedUsersByCurrentUser()
+  v
+postService.fetchPosts()
+  |
+  | MongoDB query:
+  |-- excludes restricted posts
+  |-- excludes archived posts
+  |-- excludes blocked users
+  |-- applies skip/limit pagination
+  v
+postUtils.enrichPosts()
+  |
+  | adds interaction/profile data needed by UI
+  v
+response: { posts, hasMore }
+```
+
+### Authentication Flow
+
+```text
+Register
+  |
+  |-- validate username/email/password
+  |-- hash password
+  |-- store temporary registration data in Redis
+  |-- generate OTP
+  |-- store OTP in Redis with TTL
+  |-- send OTP through email
+  v
+Verify OTP
+  |
+  |-- compare submitted OTP with Redis value
+  v
+Complete profile
+  |
+  |-- read temporary registration data from Redis
+  |-- create MongoDB user document
+```
+
+```text
+Login
+  |
+  |-- find user by email
+  |-- compare password hash
+  |-- reject blocked users
+  |-- issue access token
+  |-- issue refresh token
+  |-- store refresh token in Redis
+  |-- set refresh token in HttpOnly cookie
+```
+
+```text
+Refresh token
+  |
+  |-- read refresh token from cookie
+  |-- verify JWT signature
+  |-- load user
+  |-- compare cookie token with Redis token
+  |-- issue new access token
+```
+
+### Post Creation Flow
+
+```text
+POST /api/post/create
+  |
+  v
+authenticateUser
+  |
+  v
+Multer memory upload
+  |
+  v
+uploadFileToS3()
+  |
+  v
+postService.createPost()
+  |
+  v
+MongoDB stores userId, caption, and S3 file key
+```
+
+## Core Features
+
+- OTP based registration and password reset.
+- Access-token and refresh-token authentication.
+- Redis-backed refresh-token validation.
+- User profile, privacy, password, and profile image management.
+- Paginated feed, user posts, trending posts, liked posts, and single-post views.
+- Post creation, deletion, sharing, likes, comments, saves, and archive/publish.
+- Follow, block, restrict, and report workflows.
+- Admin user, post, and report management APIs.
+- One-to-one chat models and Socket.IO message delivery.
+- Username-based Socket.IO rooms for notifications and online presence.
+- Mediasoup live streaming module kept as an experimentation area for WebRTC transport design.
+
+## Performance Optimizations
+
+- Feed APIs use pagination instead of loading all posts.
+- Feed reads exclude archived posts and blocked users before response enrichment.
+- Redis caches OTPs, refresh tokens, and S3 pre-signed URLs with TTLs.
+- Read-heavy MongoDB queries use `.lean()` where Mongoose document methods are not needed.
+- Post deletion removes related archive, like, save, and report records in parallel with `Promise.all`.
+- S3 keeps media objects outside MongoDB, reducing document size and database bandwidth.
+- Rate limiting is applied globally to reduce repeated abusive requests.
+
+## Database Design
+
+The data model is split by domain rather than storing all interaction data inside the post document.
+
+| Collection | Purpose |
+| --- | --- |
+| `User` | Account, credentials, role, profile, privacy, moderation flags |
+| `Post` | Author, caption, S3 media key, restriction flag, boost flag, share count |
+| `Comment` | Post comments with user reference and timestamps |
+| `Likes` | User-post like relationship |
+| `SavedPost` | User-post saved relationship |
+| `Archive` | User-post archive relationship |
+| `Follow` | Follower/following relationship |
+| `Block` | User block relationship |
+| `Restriction` | User restriction relationship |
+| `Report` | User/post reports and moderation status |
+| `Chat` | Personal chat room metadata |
+| `Message` | Chat messages |
+
+Implemented indexing:
+
+- `User.userID`, `User.username`, and `User.email` are unique.
+- `Comment` has a compound index on `{ postId: 1, createdAt: -1 }` to support comment reads by post.
+
+Indexing direction for high-traffic usage:
+
+- Add `{ userId: 1, uploadDate: -1 }` on posts for profile and author-based reads.
+- Add `{ postId: 1, userId: 1 }` unique indexes on likes and saves to prevent duplicate toggles.
+- Add `{ follower: 1, following: 1 }` unique index on follows.
+- Add report status and created timestamp indexes for moderation queues.
+- Add counters or materialized interaction scores if trending becomes a high-read path.
+
+## Design Decisions
+
+- **Controller-service separation:** Controllers stay focused on HTTP behavior; services own persistence and external integrations. This keeps request handling readable and makes business operations easier to test.
+- **Redis for expiring state:** OTPs, temporary registration data, refresh tokens, and cached media URLs all need expiration. Redis fits those workloads better than storing short-lived values in MongoDB.
+- **Refresh token validation through Redis:** JWTs are normally stateless, but refresh tokens need server-side revocation. Mirroring refresh tokens in Redis allows logout and mismatch detection.
+- **S3 object keys in MongoDB:** MongoDB stores references to media, not the media itself. This keeps database documents small and lets file delivery scale independently.
+- **Separate interaction collections:** Likes, saves, follows, blocks, and archives are modeled as relationships. This avoids unbounded arrays on user or post documents.
+- **Socket rooms for targeted events:** Notifications and messages are emitted to rooms/users instead of broadcasting to every socket.
+- **Mediasoup kept isolated:** WebRTC streaming has different lifecycle and scaling concerns from REST APIs, so it is separated into the `liveStream` module.
+
+## Scalability Considerations
+
+- REST traffic can be horizontally scaled when MongoDB, Redis, and S3 are external services.
+- Socket.IO needs a Redis adapter or pub/sub layer before running multiple backend instances.
+- Feed reads should eventually move toward precomputed feed candidates or cursor-based pagination.
+- Trending should eventually use denormalized counters or scheduled aggregation instead of computing scores from multiple relationship collections on demand.
+- Direct client-to-S3 pre-signed uploads would reduce API memory pressure for larger media files.
+- Interaction collections should use compound unique indexes to protect data consistency under concurrent requests.
+- Admin/report dashboards need indexed filtering as moderation volume grows.
+
+## Folder Structure
+
+```text
+backend/
+├── server.js
+├── Constants/
 ├── validations/
-│   └── inputValidation.js      # Input validation (email, username, password, phone, name)
-│
 └── src/
     ├── config/
-    │   ├── appConfig.js        # Central config object (reads all env vars)
-    │   ├── awsS3Config.js      # AWS S3 client initialization
-    │   ├── corsConfig.js       # CORS policy
-    │   ├── dbConfig.js         # MongoDB connection
-    │   ├── mediasoupConfig.js  # Mediasoup WebRTC router/transport config
-    │   ├── redisConfig.js      # Redis client creation
-    │   └── socketConfig.js     # Socket.IO server initialization & event handlers
-    │
     ├── middlewares/
-    │   ├── adminAuth.middleware.js   # Admin JWT authentication middleware
-    │   ├── error.middleware.js       # Global error handler (last middleware)
-    │   └── userAuthMiddleware.js     # User JWT (Bearer token) authentication middleware
-    │
     ├── utils/
-    │   ├── actionButtonUtils.js  # Utility for action button logic
-    │   ├── aswS3Utils.js         # S3 pre-signed URL generation & file upload
-    │   ├── customError.js        # CustomError class (message, statusCode, errorCode)
-    │   ├── dateUtils.js          # Date/time helper functions
-    │   ├── dbUtils.js            # Mongoose query helper utilities
-    │   ├── jwtUtils.js           # JWT generate/decode for access & refresh tokens
-    │   ├── multerUtils.js        # Dynamic Multer middleware (memory storage)
-    │   └── redisUtils.js         # Redis CRUD helpers (OTP, tokens, pre-signed URL cache)
-    │
     └── modules/
-        ├── auth/               # Authentication module
-        ├── user/               # User profile management
-        ├── post/               # Post creation & feed
-        ├── comments/           # Post comments
-        ├── like/               # Post likes
-        ├── follows/            # Follow / Unfollow
-        ├── chat/               # 1-on-1 messaging
-        ├── savedPost/          # Save/unsave posts
-        ├── archive/            # Archive/publish posts
-        ├── block/              # Block/unblock users
-        ├── restriction/        # Restrict users
-        ├── report/             # Report users & posts
-        ├── admin/              # Admin dashboard APIs
-        └── liveStream/         # Mediasoup live streaming (inactive)
+        ├── auth/
+        ├── user/
+        ├── post/
+        ├── comments/
+        ├── like/
+        ├── follows/
+        ├── savedPost/
+        ├── archive/
+        ├── chat/
+        ├── report/
+        ├── block/
+        ├── restriction/
+        ├── admin/
+        └── liveStream/
 ```
 
----
+## API Design
 
-## Features
+Routes are grouped by business domain:
 
-### 👤 User Management
-- OTP-based email verification during registration (via Gmail SMTP + Nodemailer)
-- Secure registration with UUID-based user IDs
-- Profile viewing & updating (with profile picture upload to AWS S3)
-- Password change & forgot-password flow (OTP → reset)
-- User search and suggestions
-- Online status tracking via Socket.IO room joining
+| Base Path | Responsibility |
+| --- | --- |
+| `/api/auth` | OTP, registration, login, logout, access-token refresh |
+| `/api/user` | Profile, search, suggestions, status, password changes |
+| `/api/post` | Feed, post creation, post details, sharing, trending, liked posts |
+| `/api/comment` | Add and fetch comments |
+| `/api/like` | Toggle post likes |
+| `/api/save` | Toggle saved posts |
+| `/api/archive` | Archive and publish posts |
+| `/api/follow` | Follow/unfollow and following list |
+| `/api/chat` | Chat rooms and messages |
+| `/api/report` | User and post reports |
+| `/api/block` | Block/unblock users |
+| `/api/restriction` | Restrict user interactions |
+| `/admin/api` | Admin users, posts, and report management |
 
-### 🔐 Authentication & Authorization
-- JWT-based dual-token system: short-lived **Access Token** + long-lived **Refresh Token**
-- Refresh tokens stored & validated in **Redis** (token rotation security)
-- Separate login for **Users** and **Admins**
-- Refresh tokens delivered via **HttpOnly cookies**
-- Access tokens sent as `Authorization: Bearer <token>` headers
-- Role-based access control (`user` / `admin`)
+Representative endpoints:
 
-### 📸 Posts
-- Create posts with media (images/videos) uploaded to AWS S3
-- Fetch all posts, user-specific posts, trending posts, and liked posts
-- Share posts (increments share count)
-- Delete posts
-- Admin can restrict or boost posts
+```text
+POST   /api/auth/send-otp
+POST   /api/auth/otp-verification
+POST   /api/auth/register
+POST   /api/auth/user/login
+POST   /api/auth/user/refresh-token
 
-### 💬 Real-time Chat
-- Create 1-on-1 chat rooms
-- Send and retrieve messages
-- Real-time message delivery via Socket.IO (`sendMessage` → `receiveMessage`)
+GET    /api/post/get-post?page=1
+POST   /api/post/create
+GET    /api/post/user?username=<username>
+GET    /api/post/get-trending
+PATCH  /api/post/share
 
-### 🔔 Notifications
-- Real-time push notifications via Socket.IO (`sendNotification` → `receiveNotification`)
-- Username-based rooms for targeted delivery
+PATCH  /api/like/post/toggle-like
+PATCH  /api/save/post
+POST   /api/comment/add-comment
+GET    /api/comment/get-comments?postId=<postId>
 
-### ❤️ Likes
-- Toggle like/unlike on posts
-
-### 💾 Saved Posts
-- Toggle save/unsave posts
-
-### 📁 Archive
-- Archive posts (hide from public feed)
-- Publish archived posts back to the feed
-- List all archived posts
-
-### 👥 Follow System
-- Toggle follow/unfollow users
-- Get following list
-
-### 🚫 Block & Restriction
-- Block/unblock users
-- Restrict/unrestrict users (soft moderation)
-
-### 🚨 Reporting
-- Report users or posts (with reasons)
-
-### 🛡️ Admin Panel
-- List & search all users
-- View user details
-- Ban/unban users
-- Block/unblock users
-- Manage posts (list, view, restrict, boost)
-- View and manage all reports (update report status)
-- Separate admin authentication flow
-
-### 📡 Live Streaming (Implemented / Inactive)
-- Full Mediasoup v3 WebRTC SFU integration
-- Stream model: title, description, streamer, viewers, embedded comments
-- Configurable codecs: Opus (audio), VP8 (video)
-- WebRTC transport with configurable bitrate and port range (10000–10100)
-- Socket.IO integration service for live stream signaling
-
----
-
-## API Reference
-
-All protected user routes require the header:
-```
-Authorization: Bearer <accessToken>
+GET    /admin/api/users
+GET    /admin/api/posts
+GET    /admin/api/reports
+PATCH  /admin/api/report
 ```
 
-### 🔑 Auth — `/api/auth`
+## Error Handling
 
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| `POST` | `/send-otp` | Send OTP to email (validates username, email, password; stores hashed password in Redis) | ❌ |
-| `POST` | `/otp-verification` | Verify submitted OTP against Redis-stored OTP | ❌ |
-| `POST` | `/register` | Complete registration (retrieves data from Redis, creates user in DB) | ❌ |
-| `POST` | `/user/login` | User login → returns `accessToken`, sets `refreshToken` cookie | ❌ |
-| `POST` | `/user/logout` | Clear user `refreshToken` cookie | ❌ |
-| `POST` | `/user/refresh-token` | Exchange valid refresh token for new access token | ❌ |
-| `POST` | `/user/sent-otp/forget-password` | Send OTP for password reset | ❌ |
-| `POST` | `/user/reset-password` | Reset password using new password + email | ❌ |
-| `POST` | `/admin/login` | Admin login → returns `accessToken`, sets `adminToken` cookie | ❌ |
-| `POST` | `/admin/logout` | Clear admin `adminToken` cookie | ❌ |
+Expected failures are represented with `CustomError`, which carries:
 
----
+- message
+- HTTP status code
+- application error code
 
-### 👤 User — `/api/user` *(JWT Protected)*
+The global error middleware returns a consistent JSON response:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/suggest-users` | Get suggested users to follow |
-| `GET` | `/details` | Get current user's profile details |
-| `PATCH` | `/update-profile` | Update profile info + upload profile picture to S3 |
-| `GET` | `/about-profile` | Get another user's profile details |
-| `GET` | `/status` | Get user's online/activity status |
-| `GET` | `/search` | Search users by keyword |
-| `PATCH` | `/change-password` | Change password (requires current password verification) |
-
----
-
-### 📸 Post — `/api/post` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Get a specific post |
-| `POST` | `/create` | Create a new post (with media upload via Multer → S3) |
-| `GET` | `/get-post` | Get all posts (feed) |
-| `GET` | `/user` | Get posts by a specific user |
-| `POST` | `/delete` | Delete a post |
-| `GET` | `/get-trending` | Get trending/boosted posts |
-| `PATCH` | `/share` | Share a post (increments share count) |
-| `GET` | `/liked-posts` | Get all posts liked by current user |
-
----
-
-### 💬 Comments — `/api/comment` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/add-comment` | Add a comment to a post |
-| `GET` | `/get-comments` | Get all comments for a post |
-
----
-
-### ❤️ Likes — `/api/like` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `PATCH` | `/post/toggle-like` | Toggle like/unlike on a post |
-
----
-
-### 💾 Saved Posts — `/api/save` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `PATCH` | `/post` | Toggle save/unsave a post |
-
----
-
-### 📁 Archive — `/api/archive` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Get all archived posts for current user |
-| `POST` | `/` | Archive a post |
-| `POST` | `/publish` | Publish (un-archive) a post |
-
----
-
-### 👥 Follows — `/api/follow` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/toggle-follow` | Follow or unfollow a user |
-| `GET` | `/followings` | Get list of users the current user follows |
-
----
-
-### 🚫 Block — `/api/block` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/toggle-block` | Block or unblock a user |
-
----
-
-### 🔒 Restriction — `/api/restriction` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/user` | Toggle restrict/unrestrict a user |
-
----
-
-### 🚨 Report — `/api/report` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/user` | Report a user |
-| `POST` | `/post` | Report a post |
-
----
-
-### 💬 Chat — `/api/chat` *(JWT Protected)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Get all chat conversations for current user |
-| `POST` | `/` | Create a new chat with a user |
-| `GET` | `/message` | Get messages for a chat room |
-| `POST` | `/message` | Send a message to a chat room |
-
----
-
-### 🛡️ Admin — `/admin/api`
-
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| `GET` | `/users` | List all users | ❌* |
-| `PATCH` | `/user/toggle-ban` | Ban or unban a user | ❌* |
-| `GET` | `/user/user-details` | Get a specific user's details | ❌* |
-| `PATCH` | `/user/toggle-block` | Block/unblock a user (admin action) | ❌* |
-| `GET` | `/posts` | List all posts | ❌* |
-| `GET` | `/post` | Get a specific post's details | ❌* |
-| `PATCH` | `/post/toggleRestriction` | Restrict or unrestrict a post | ❌* |
-| `PATCH` | `/post/boost-post` | Boost or un-boost a post | ❌* |
-| `GET` | `/reports` | Get all content reports | ❌* |
-| `GET` | `/report` | Get a specific report's details | ❌* |
-| `PATCH` | `/report` | Update a report's status | ❌* |
-
-> *Admin routes currently rely on `adminAuth.middleware.js` — verify current middleware attachment in `adminRoute.js`.
-
----
-
-## Data Models
-
-### User
-| Field | Type | Notes |
-|-------|------|-------|
-| `userID` | String | UUID, unique |
-| `username` | String | Unique, trimmed |
-| `email` | String | Unique, lowercase |
-| `password` | String | Bcrypt hashed |
-| `role` | String | `user` or `admin` |
-| `fullName` | String | Required |
-| `profileImage` | String | S3 key, default placeholder |
-| `bio` | String | Default empty |
-| `dob` | Date | Required |
-| `gender` | String | `Male`, `Female`, `None` |
-| `isBan` | Boolean | Admin ban flag |
-| `isBlock` | Boolean | Admin block flag |
-| `isPrivate` | Boolean | Profile privacy setting |
-| `isVerified` | Boolean | Email verification status |
-| `refreshToken` | String | Active refresh token |
-| `lastLogin` | Date | Last login timestamp |
-
-### Post
-| Field | Type | Notes |
-|-------|------|-------|
-| `userId` | ObjectId | Ref: User |
-| `fileName` | String | S3 key for media file |
-| `caption` | String | Post text |
-| `uploadDate` | Date | Creation date |
-| `isRestricted` | Boolean | Admin restriction flag |
-| `isPostBoost` | Boolean | Admin boost flag |
-| `shareCount` | Number | Share counter |
-
-### Stream (Live Streaming)
-| Field | Type | Notes |
-|-------|------|-------|
-| `title` | String | Required |
-| `description` | String | Optional |
-| `streamerId` | ObjectId | Ref: User |
-| `startTime` | Date | Auto-set |
-| `endTime` | Date | Set on stream end |
-| `isLive` | Boolean | Current live status |
-| `viewers` | [ObjectId] | Array of viewer User refs |
-| `comments` | [Object] | Embedded live comments |
-
-> Additional models: **Chat**, **Message**, **Follow**, **Like**, **Block**, **Restriction**, **Report**, **SavedPost**, **Archive**, **Comment**
-
----
-
-## Authentication Flow
-
-```
-Registration:
-  POST /send-otp  →  Validate inputs  →  Check duplicate username/email
-       → Hash password  →  Store {username, email, hashedPassword} in Redis (TTL: 1000s)
-       → Generate OTP  →  Store OTP in Redis (TTL: 300s / 5 min)
-       → Send OTP email via Nodemailer
-
-  POST /otp-verification  →  Retrieve OTP from Redis  →  Compare OTP
-
-  POST /register  →  Retrieve user data from Redis
-       → Add (fullName, dob, phoneNumber, userID: uuid())
-       → Save to MongoDB
-
-Login:
-  POST /user/login  →  Find user by email  →  Compare bcrypt password
-       → Check role === 'user'  →  Check !isBlock
-       → Generate accessToken (JWT, short-lived)  →  Generate refreshToken (JWT, 7 days)
-       → Store refreshToken in Redis (key: token<email>, TTL: 7 days)
-       → Set refreshToken as HttpOnly cookie
-       → Return { accessToken, username }
-
-Token Refresh:
-  POST /user/refresh-token  →  Read refreshToken from cookie
-       → Decode refreshToken  →  Find user  →  Compare token vs Redis
-       → Generate new accessToken  →  Return { accessToken }
+```json
+{
+  "success": false,
+  "message": "Error message",
+  "errorCode": "APPLICATION_ERROR_CODE"
+}
 ```
 
----
-
-## Real-time Features (Socket.IO)
-
-The `socketConfig.js` initializes Socket.IO on the same HTTP server. Events:
-
-| Event (Client → Server) | Description |
-|--------------------------|-------------|
-| `createOnlineUser` | User joins their personal room (keyed by username) |
-| `sendNotification` | Send a notification to a specific user's room |
-| `joinRoom` | Join a chat room by `roomId` |
-| `sendMessage` | Send a message to a chat room |
-
-| Event (Server → Client) | Description |
-|--------------------------|-------------|
-| `receiveNotification` | Receive notification in personal room |
-| `receiveMessage` | Receive message in chat room |
-
----
-
-## File Uploads (AWS S3)
-
-Media files are handled with **Multer** (in-memory storage) and uploaded to **AWS S3** via `@aws-sdk/client-s3`:
-
-- **Profile images** → `AWS_S3_BUCKET_NAME` bucket under key `images/<userId>_<filename>`
-- **Post media** → `AWS_S3_POST_BUCKET_NAME` bucket under key `images/<userId>_<filename>` or `videos/<userId>_<filename>`
-
-**Pre-signed URLs** are generated on-demand using `@aws-sdk/s3-request-presigner` (1-hour expiry) and cached in Redis to avoid repeated S3 calls:
-- Profile image URL cached for ~56 minutes (`profileImage<userId>`)
-- Post URL cached for ~58 minutes (`post<postId>`)
-
----
-
-## Caching Strategy (Redis)
-
-| Key Pattern | Data | TTL |
-|-------------|------|-----|
-| `<email>` | Temporary registration data (hashed pwd, username) | 1000 seconds |
-| `otp:<email>` | OTP for verification | 300 seconds (5 min) |
-| `token<email>` | Refresh token | 604800 seconds (7 days) |
-| `profileImage<userId>` | Pre-signed S3 URL for profile image | 3400 seconds (~56 min) |
-| `post<postId>` | Pre-signed S3 URL for post media | 3500 seconds (~58 min) |
-
----
-
-## Security
-
-| Mechanism | Details |
-|-----------|---------|
-| **Rate Limiting** | 10,000 requests per 15 minutes per IP (express-rate-limit) |
-| **CORS** | Restricted to `https://gravital.shahidnoushad.com` with credentials |
-| **JWT** | Signed with separate secrets for access and refresh tokens |
-| **HttpOnly Cookies** | Refresh tokens not accessible via JavaScript |
-| **Password Hashing** | Bcrypt with salt rounds |
-| **Input Validation** | Email regex, username (alphanumeric + underscore, min 5), password strength (uppercase, lowercase, digit, special char, min 8), phone (10 digits), full name (alpha + spaces, min 3) |
-| **Role Check** | JWT payload includes `role` — verified on every protected route |
-| **Token Revocation** | Logout clears both the cookie and the Redis-stored token |
-| **Custom Error Handling** | Global `errorHandler` middleware returns structured JSON with `statusCode`, `message`, and `errorCode` |
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** >= 18.x
-- **MongoDB** (local or Atlas)
-- **Redis** (local or cloud — e.g., Redis Cloud, Upstash)
-- **AWS Account** with two S3 buckets (profile images + post media)
-- **Gmail account** with an App Password for Nodemailer SMTP
-
-### Installation
+## Setup / Getting Started
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/shahid123s/Gravital-Server.git
-cd Gravital-Server
-
-# 2. Install dependencies
+cd Gravital-system/backend
 npm install
-
-# 3. Configure environment variables
 cp .env.example .env
-# Edit .env with your actual credentials
-
-# 4. Start the development server
 npm run dev
 ```
 
----
+Required services:
 
-## Environment Variables
+- MongoDB
+- Redis
+- AWS S3 bucket credentials
+- SMTP/Gmail app password for OTP delivery
 
-Copy `.env.example` to `.env` and fill in all values:
-
-```env
-# Application
-PORT=8000
-NODE_ENV=development
-ORIGIN_URL=http://localhost:3000
-
-# MongoDB
-MONGO_URI=mongodb://localhost:27017/gravital
-
-# Redis
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_PASSWORD=
-
-# JWT
-ACCESS_TOKEN_SECRET=your_access_token_secret
-ACCESS_TOKEN_LIFETIME=15m
-REFRESH_TOKEN_SECRET=your_refresh_token_secret
-REFRESH_TOKEN_LIFETIME=7d
-
-# Nodemailer (Gmail)
-NODEMAILER_EMAIL=your_email@gmail.com
-NODEMAILER_PASSWORD=your_gmail_app_password
-
-# AWS S3
-AWS_S3_ACCESS_KEY_ID=your_aws_access_key
-AWS_S3_SECRET_ACCESS_KEY=your_aws_secret_key
-AWS_S3_BUCKET_NAME=your-profile-images-bucket
-AWS_S3_POST_BUCKET_NAME=your-post-media-bucket
-AWS_S3_BUCKET_REGION=ap-south-1
-
-# Mediasoup (WebRTC Live Streaming)
-ANNOUNCED_IP=127.0.0.1
-```
-
-See [`.env.example`](./.env.example) for the full annotated template.
-
----
-
-## Scripts
+Scripts:
 
 ```bash
-npm run dev     # Start server with nodemon (auto-restart on changes)
-npm run start   # Start server with plain node (production)
+npm run dev
+npm start
 ```
 
----
+Environment groups:
 
-## Author
+- `PORT`, `NODE_ENV`, `ORIGIN_URL`
+- `MONGO_URI`
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`
+- `ACCESS_TOKEN_SECRET`, `ACCESS_TOKEN_LIFETIME`
+- `REFRESH_TOKEN_SECRET`, `REFRESH_TOKEN_LIFETIME`
+- `NODEMAILER_EMAIL`, `NODEMAILER_PASSWORD`
+- `AWS_S3_ACCESS_KEY_ID`, `AWS_S3_SECRET_ACCESS_KEY`
+- `AWS_S3_BUCKET_NAME`, `AWS_S3_POST_BUCKET_NAME`, `AWS_S3_BUCKET_REGION`
+- `ANNOUNCED_IP`
 
-**Shahid** — [GitHub](https://github.com/shahid123s)
+## Future Improvements
 
----
-
-## License
-
-ISC
+- Add automated tests for authentication, post interactions, token refresh, and moderation flows.
+- Add route-level validation middleware for every public endpoint.
+- Add compound unique indexes for interaction collections.
+- Add Redis adapter support for multi-instance Socket.IO deployments.
+- Move large media uploads to backend-issued pre-signed S3 URLs.
+- Add structured logging, request IDs, and production monitoring.
+- Use stricter production cookie settings over HTTPS.
+- Convert trending computation to cached counters or scheduled materialized results.
