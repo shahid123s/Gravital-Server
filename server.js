@@ -27,6 +27,7 @@ const likeRoute = require('./src/modules/like/likeRoute');
 const blockRoute = require('./src/modules/block/blockRoutes');
 const restrictionRoute = require('./src/modules/restriction/restrictionRoute');
 const { initializeSocket } = require('./src/config/socketConfig');
+const appConfig = require('./src/config/appConfig');
 
 // mediasoup implementation
 // const mediasoupService = require('./src/modules/liveStream/services/streamService');
@@ -50,6 +51,7 @@ const server = http.createServer(app);
 app.use(cookieParser());
 app.use(express.json());
 app.use(corsConfig);
+console.log(appConfig.cors.origin, 'origin')
 app.use(apiLimiter);
 
 

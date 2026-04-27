@@ -9,7 +9,7 @@ const appConfig = {
         environment: process.env.NODE_ENV || 'development',
     },
     cors: {
-        origin: process.env.ORIGIN_URL || 'http://localhost:3000',
+        origin: process.env.ORIGIN_URL || 'http://localhost:3001',
     },
     db: {
         uri: process.env.MONGO_URI,

@@ -1,14 +1,11 @@
 const cors = require('cors');
 const appConfig = require('./appConfig');
 
-
-//configure the cors 
-
 const corsConfig = cors({
-    origin : ["https://gravital.shahidnoushad.com"],
-    credentials: true,               // Allow credentials (cookies, authorization headers, etc.)
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // Allowed HTTP methods
+    origin: appConfig.cors.origin,   // use the env var: ORIGIN_URL
+    credentials: true,               // allow cookies & auth headers
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-})
+});
 
 module.exports = corsConfig;
